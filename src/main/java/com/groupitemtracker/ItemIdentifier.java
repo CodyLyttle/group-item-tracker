@@ -1,0 +1,28 @@
+package com.groupitemtracker;
+
+import java.util.Collection;
+import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.ItemVariationMapping;
+
+public class ItemIdentifier
+{
+	private final ItemManager itemManager;
+
+	public ItemIdentifier(ItemManager manager)
+	{
+		this.itemManager = manager;
+	}
+
+	public int getBaseID(int itemID)
+	{
+		return ItemVariationMapping.map(
+			itemManager.canonicalize(itemID));
+	}
+
+	public Collection<Integer> getVariationIDs(int itemID)
+	{
+		return ItemVariationMapping.getVariations(
+			ItemVariationMapping.map(
+				itemManager.canonicalize(itemID)));
+	}
+}

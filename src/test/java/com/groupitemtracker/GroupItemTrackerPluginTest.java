@@ -1,12 +1,15 @@
 package com.groupitemtracker;
 
 import com.google.inject.testing.fieldbinder.Bind;
+import java.util.Collection;
 import java.util.Optional;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.gameval.ItemID;
 import net.runelite.client.RuneLite;
 import net.runelite.client.externalplugins.ExternalPluginManager;
+import net.runelite.client.game.ItemManager;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,6 +31,10 @@ public class GroupItemTrackerPluginTest
 	@Mock
 	@Bind
 	private Client client;
+
+	@Mock
+	@Bind
+	private ItemManager itemManager;
 
 	@Test
 	public void testTrackedItem()
@@ -69,11 +76,36 @@ public class GroupItemTrackerPluginTest
 		var itemB = new Item(2, 2);
 		when(client.getItemContainer(anyInt())).thenReturn(container);
 		when(container.getItems()).thenReturn(new Item[]{itemA, itemB});
-		
+
 		Optional<Item[]> result = sut.getItems(TrackedLocation.BANK);
 		Assert.assertTrue(result.isPresent());
 		Assert.assertEquals(2, result.get().length);
 		Assert.assertSame(itemA, result.get()[0]);
 		Assert.assertSame(itemB, result.get()[1]);
+	}
+
+	@Test
+	public void testItemIdentifier()
+	{
+		var sut = new ItemIdentifier(itemManager);
+		when(itemManager.canonicalize(anyInt()))
+			.thenAnswer(invocation -> invocation.getArguments()[0]);
+
+		// returns canonicalized base ID.
+		when(itemManager.canonicalize(ItemID.SHRIMP + 1)).thenReturn(ItemID.SHRIMP);
+		int fromNoted = sut.getBaseID(ItemID.SHRIMP + 1);
+		Assert.assertEquals(ItemID.SHRIMP, fromNoted);
+
+		// returns variant base ID.
+		Assert.assertEquals(ItemID.SERPENTINE_HELM, sut.getBaseID(ItemID.SERPENTINE_HELM_CHARGED_CYAN));
+
+		// returns base + variant IDs for noted item.
+		when(itemManager.canonicalize(ItemID._2DOSEGOADING + 1)).thenReturn(ItemID._2DOSEGOADING);
+		Collection<Integer> actualIDs = sut.getVariationIDs(ItemID._2DOSEGOADING);
+		Assert.assertTrue(actualIDs.contains(ItemID._1DOSEGOADING));
+		Assert.assertTrue(actualIDs.contains(ItemID._2DOSEGOADING));
+		Assert.assertTrue(actualIDs.contains(ItemID._3DOSEGOADING));
+		Assert.assertTrue(actualIDs.contains(ItemID._4DOSEGOADING));
+		Assert.assertEquals(4, actualIDs.size());
 	}
 }
