@@ -42,33 +42,33 @@ public class GroupItemTrackerPluginTest
 		var sut = new TrackedItem(123);
 
 		// counters start at zero. 
-		Assert.assertEquals(0, sut.getLocationCount(TrackedLocation.BANK));
+		Assert.assertEquals(0, sut.getContainerCount(TrackedContainer.BANK));
 		Assert.assertEquals(0, sut.getTotalCount());
 
 		// increase counters.
-		sut.increaseLocationCounter(TrackedLocation.EQUIPMENT, 1);
-		sut.increaseLocationCounter(TrackedLocation.INVENTORY, 2);
-		sut.increaseLocationCounter(TrackedLocation.INVENTORY, 3);
-		sut.increaseLocationCounter(TrackedLocation.INVENTORY, 4);
-		Assert.assertEquals(0, sut.getLocationCount(TrackedLocation.BANK));
-		Assert.assertEquals(1, sut.getLocationCount(TrackedLocation.EQUIPMENT));
-		Assert.assertEquals(9, sut.getLocationCount(TrackedLocation.INVENTORY));
+		sut.increaseContainerCounter(TrackedContainer.EQUIPMENT, 1);
+		sut.increaseContainerCounter(TrackedContainer.INVENTORY, 2);
+		sut.increaseContainerCounter(TrackedContainer.INVENTORY, 3);
+		sut.increaseContainerCounter(TrackedContainer.INVENTORY, 4);
+		Assert.assertEquals(0, sut.getContainerCount(TrackedContainer.BANK));
+		Assert.assertEquals(1, sut.getContainerCount(TrackedContainer.EQUIPMENT));
+		Assert.assertEquals(9, sut.getContainerCount(TrackedContainer.INVENTORY));
 		Assert.assertEquals(10, sut.getTotalCount());
 
 		// reset counters to zero.
-		sut.resetLocationCounter(TrackedLocation.INVENTORY);
-		Assert.assertEquals(0, sut.getLocationCount(TrackedLocation.INVENTORY));
+		sut.resetContainerCounter(TrackedContainer.INVENTORY);
+		Assert.assertEquals(0, sut.getContainerCount(TrackedContainer.INVENTORY));
 		Assert.assertEquals(1, sut.getTotalCount());
 	}
 
 	@Test
-	public void testTrackedLocationReader()
+	public void testTrackedContainerReader()
 	{
-		var sut = new TrackedLocationReader(client);
+		var sut = new TrackedContainerReader(client);
 
 		// returns empty when null container.
 		when(client.getItemContainer(anyInt())).thenReturn(null);
-		Assert.assertTrue(sut.getItems(TrackedLocation.BANK).isEmpty());
+		Assert.assertTrue(sut.getItems(TrackedContainer.BANK).isEmpty());
 
 		// returns container items.
 		var container = mock(ItemContainer.class);
@@ -77,7 +77,7 @@ public class GroupItemTrackerPluginTest
 		when(client.getItemContainer(anyInt())).thenReturn(container);
 		when(container.getItems()).thenReturn(new Item[]{itemA, itemB});
 
-		Optional<Item[]> result = sut.getItems(TrackedLocation.BANK);
+		Optional<Item[]> result = sut.getItems(TrackedContainer.BANK);
 		Assert.assertTrue(result.isPresent());
 		Assert.assertEquals(2, result.get().length);
 		Assert.assertSame(itemA, result.get()[0]);

@@ -5,7 +5,7 @@ import lombok.Getter;
 
 public class TrackedItem
 {
-	private final EnumMap<TrackedLocation, Integer> locationCounters;
+	private final EnumMap<TrackedContainer, Integer> containerCounters;
 
 	@Getter
 	private final int itemID;
@@ -14,38 +14,38 @@ public class TrackedItem
 	{
 		this.itemID = itemID;
 
-		locationCounters = new EnumMap<>(TrackedLocation.class);
-		for (var location : TrackedLocation.values())
+		containerCounters = new EnumMap<>(TrackedContainer.class);
+		for (var container : TrackedContainer.values())
 		{
-			locationCounters.put(location, 0);
+			containerCounters.put(container, 0);
 		}
 	}
 
-	public void resetLocationCounter(TrackedLocation location)
+	public void resetContainerCounter(TrackedContainer container)
 	{
-		assert locationCounters.containsKey(location);
+		assert containerCounters.containsKey(container);
 
-		locationCounters.put(location, 0);
+		containerCounters.put(container, 0);
 	}
 
-	public void increaseLocationCounter(TrackedLocation location, int value)
+	public void increaseContainerCounter(TrackedContainer container, int value)
 	{
 		assert value > 0;
-		assert locationCounters.containsKey(location);
+		assert containerCounters.containsKey(container);
 
-		Integer existingValue = locationCounters.get(location);
-		locationCounters.put(location, existingValue + value);
+		Integer existingValue = containerCounters.get(container);
+		containerCounters.put(container, existingValue + value);
 	}
 
-	public int getLocationCount(TrackedLocation location)
+	public int getContainerCount(TrackedContainer container)
 	{
-		return locationCounters.get(location);
+		return containerCounters.get(container);
 	}
 
 	public int getTotalCount()
 	{
 		int sum = 0;
-		for (int quantity : locationCounters.values())
+		for (int quantity : containerCounters.values())
 		{
 			sum += quantity;
 		}
