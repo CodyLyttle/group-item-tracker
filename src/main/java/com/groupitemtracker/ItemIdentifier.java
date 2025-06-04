@@ -1,5 +1,6 @@
 package com.groupitemtracker;
 
+import com.google.inject.Inject;
 import java.util.Collection;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemVariationMapping;
@@ -8,6 +9,7 @@ public class ItemIdentifier
 {
 	private final ItemManager itemManager;
 
+	@Inject
 	public ItemIdentifier(ItemManager manager)
 	{
 		this.itemManager = manager;
