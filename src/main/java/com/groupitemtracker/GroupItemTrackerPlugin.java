@@ -1,18 +1,25 @@
 package com.groupitemtracker;
 
 import com.google.inject.Provides;
+import java.util.Objects;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.ItemContainer;
 import net.runelite.api.Menu;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.overlay.OverlayManager;
 
 @Slf4j
 @PluginDescriptor(name = "Group Item Tracker")
@@ -30,12 +37,46 @@ public class GroupItemTrackerPlugin extends Plugin
 	private GroupItemTrackerConfig config;
 
 	@Inject
+	private EventBus eventBus;
+
+	@Inject
+	private ItemManager itemManager;
+
+	@Inject
 	private ItemTracker itemTracker;
+
+	@Inject
+	private OverlayManager overlayManager;
+
+	private BankItemOverlay bankItemOverlay;
 
 	@Provides
 	GroupItemTrackerConfig provideConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(GroupItemTrackerConfig.class);
+	}
+
+	@Override
+	protected void startUp()
+	{
+		bankItemOverlay = new BankItemOverlay(itemManager, itemTracker);
+		eventBus.register(bankItemOverlay);
+		overlayManager.add(bankItemOverlay);
+	}
+
+	@Override
+	protected void shutDown()
+	{
+		eventBus.unregister(bankItemOverlay);
+		overlayManager.remove(bankItemOverlay);
+		bankItemOverlay = null;
+	}
+
+	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		TrackedContainer.fromItemContainer(event.getItemContainer())
+			.ifPresent(container -> itemTracker.refreshContainer(container));
 	}
 
 	@Subscribe
@@ -54,7 +95,8 @@ public class GroupItemTrackerPlugin extends Plugin
 			MenuEntry entry = menu.createMenuEntry(1);
 			entry.setItemId(itemID);
 			entry.setOption(isTracked ? MENU_OPTION_REMOVE : MENU_OPTION_ADD);
-			entry.onClick(e -> {
+			entry.onClick(e ->
+			{
 				if (isTracked)
 				{
 					itemTracker.removeItem(itemID);
@@ -63,6 +105,12 @@ public class GroupItemTrackerPlugin extends Plugin
 				{
 					itemTracker.addItem(itemID);
 				}
+
+				ItemContainer bankContainer = Objects.requireNonNullElse(
+					client.getItemContainer(InventoryID.BANK),
+					client.getItemContainer(InventoryID.INV_GROUP_TEMP)
+				);
+				bankItemOverlay.refreshItemCache(bankContainer);
 			});
 		}
 	}
