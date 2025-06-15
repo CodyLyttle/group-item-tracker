@@ -4,25 +4,63 @@ import com.google.inject.Provides;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.Menu;
+import net.runelite.api.MenuEntry;
+import net.runelite.api.events.MenuEntryAdded;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 
 @Slf4j
-@PluginDescriptor(
-	name = "Group Item Tracker"
-)
+@PluginDescriptor(name = "Group Item Tracker")
 public class GroupItemTrackerPlugin extends Plugin
 {
+	private static final String MENU_OPTION_ADD = "Add to GIM item tracker";
+	private static final String MENU_OPTION_REMOVE = "Remove from GIM item tracker";
+
 	@Inject
 	private Client client;
 
 	@Inject
 	private GroupItemTrackerConfig config;
-	
+
+	@Inject
+	private ItemTracker itemTracker;
+
 	@Provides
 	GroupItemTrackerConfig provideConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(GroupItemTrackerConfig.class);
+	}
+
+	@Subscribe
+	private void onMenuEntryAdded(MenuEntryAdded event)
+	{
+		int interfaceID = event.getActionParam1();
+		boolean isBank = (interfaceID == InterfaceID.Bankmain.ITEMS || interfaceID == InterfaceID.SharedBank.ITEMS);
+
+		// Insert tracked item menu option after the 'Examine' menu option.
+		if (isBank && event.getOption().equals("Examine"))
+		{
+			int itemID = client.getWidget(interfaceID).getChild(event.getActionParam0()).getItemId();
+			boolean isTracked = itemTracker.containsItem(itemID);
+
+			Menu menu = client.getMenu();
+			MenuEntry entry = menu.createMenuEntry(1);
+			entry.setItemId(itemID);
+			entry.setOption(isTracked ? MENU_OPTION_REMOVE : MENU_OPTION_ADD);
+			entry.onClick(e -> {
+				if (isTracked)
+				{
+					itemTracker.removeItem(itemID);
+				}
+				else
+				{
+					itemTracker.addItem(itemID);
+				}
+			});
+		}
 	}
 }
