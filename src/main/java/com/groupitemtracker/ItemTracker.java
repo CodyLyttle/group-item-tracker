@@ -65,13 +65,16 @@ public class ItemTracker
 		return trackedItem;
 	}
 
-	public void removeItem(int itemID)
+	public TrackedItem removeItem(int itemID)
 	{
 		final int trackedID = itemIdentifier.getBaseID(itemID);
-		if (itemLookup.remove(trackedID) == null)
+		TrackedItem removed = itemLookup.remove(trackedID);
+		if (removed == null)
 		{
 			throw new IllegalArgumentException("Cannot remove an untracked item");
 		}
+
+		return removed;
 	}
 
 	public void refreshContainer(TrackedContainer container)

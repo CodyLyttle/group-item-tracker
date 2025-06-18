@@ -1,6 +1,7 @@
 package com.groupitemtracker;
 
 import com.google.inject.Provides;
+import java.awt.image.BufferedImage;
 import java.util.Objects;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -8,17 +9,22 @@ import net.runelite.api.Client;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.Menu;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.gameval.ItemID;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 @Slf4j
@@ -32,6 +38,12 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	@Inject
 	private Client client;
+
+	@Inject
+	private ClientThread clientThread;
+
+	@Inject
+	private ClientToolbar clientToolbar;
 
 	@Inject
 	private GroupItemTrackerConfig config;
@@ -50,6 +62,10 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	private BankItemOverlay bankItemOverlay;
 
+	private NavigationButton sidebarNavButton;
+
+	private SidebarPanel sidebarPanel;
+
 	@Provides
 	GroupItemTrackerConfig provideConfig(ConfigManager configManager)
 	{
@@ -62,6 +78,18 @@ public class GroupItemTrackerPlugin extends Plugin
 		bankItemOverlay = new BankItemOverlay(itemManager, itemTracker);
 		eventBus.register(bankItemOverlay);
 		overlayManager.add(bankItemOverlay);
+
+		sidebarPanel = new SidebarPanel(itemManager);
+		clientThread.invokeLater(() ->
+		{
+			final BufferedImage sidebarIcon = itemManager.getImage(ItemID.LEAGUE_BANKERS_NOTE);
+			sidebarNavButton = NavigationButton.builder()
+				.tooltip("Group Item Tracker")
+				.icon(sidebarIcon)
+				.panel(sidebarPanel)
+				.build();
+			clientToolbar.addNavigation(sidebarNavButton);
+		});
 	}
 
 	@Override
@@ -70,6 +98,18 @@ public class GroupItemTrackerPlugin extends Plugin
 		eventBus.unregister(bankItemOverlay);
 		overlayManager.remove(bankItemOverlay);
 		bankItemOverlay = null;
+
+		clientToolbar.removeNavigation(sidebarNavButton);
+		sidebarPanel = null;
+	}
+
+	@Subscribe
+	private void onGameTick(GameTick event)
+	{
+		for (var item : itemTracker.getItems())
+		{
+			sidebarPanel.refreshItemPanel(item);
+		}
 	}
 
 	@Subscribe
@@ -99,11 +139,13 @@ public class GroupItemTrackerPlugin extends Plugin
 			{
 				if (isTracked)
 				{
-					itemTracker.removeItem(itemID);
+					TrackedItem removedItem = itemTracker.removeItem(itemID);
+					sidebarPanel.removeItemPanel(removedItem);
 				}
 				else
 				{
-					itemTracker.addItem(itemID);
+					TrackedItem addedItem = itemTracker.addItem(itemID);
+					sidebarPanel.addItemPanel(addedItem);
 				}
 
 				ItemContainer bankContainer = Objects.requireNonNullElse(
