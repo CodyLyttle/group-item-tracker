@@ -5,6 +5,7 @@ import com.google.inject.Inject;
 import com.google.inject.testing.fieldbinder.Bind;
 import com.google.inject.testing.fieldbinder.BoundFieldModule;
 import java.util.Collection;
+import net.runelite.api.ItemComposition;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.client.game.ItemManager;
 import org.junit.Assert;
@@ -13,6 +14,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.mockito.ArgumentMatchers.anyInt;
 import org.mockito.Mock;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -77,5 +79,19 @@ public class ItemIdentifierTests
 				Assert.assertTrue(actualIDs.contains(expectedID));
 			}
 		}
+	}
+
+	@Test
+	public void getItemName()
+	{
+		// Returns members name.
+		final String expectedName = "Climbing Boots";
+		final var mockItemComposition = mock(ItemComposition.class);
+		when(mockItemComposition.getMembersName()).thenReturn(expectedName);
+		when(itemManager.getItemComposition(anyInt())).thenReturn(mockItemComposition);
+
+		final String actualName = sut.getName(123);
+
+		Assert.assertEquals(expectedName, actualName);
 	}
 }

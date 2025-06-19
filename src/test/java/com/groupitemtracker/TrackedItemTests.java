@@ -8,7 +8,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class TrackedItemTests
 {
-	private final TrackedItem sut = new TrackedItem(123);
+	private final TrackedItem sut = new TrackedItem(123, "foo");
 
 	@Test
 	public void containerCountersStartAtZero()

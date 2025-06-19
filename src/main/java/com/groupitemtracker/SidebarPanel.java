@@ -31,7 +31,7 @@ public class SidebarPanel extends PluginPanel
 		titlePanel.setBorder(new EmptyBorder(8, 12, 8, 12));
 		titlePanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		titlePanel.add(titleLabel, BorderLayout.CENTER);
-	
+
 		itemContainer = new JPanel(new GridLayout(0, 1, 0, 4));
 
 		setBorder(new EmptyBorder(6, 6, 6, 6));
@@ -47,11 +47,9 @@ public class SidebarPanel extends PluginPanel
 			throw new IllegalArgumentException("Panel already exists for item: " + item.getItemID());
 		}
 
-		int id = item.getItemID();
-		final String name = itemManager.getItemComposition(id).getMembersName();
-		final AsyncBufferedImage image = itemManager.getImage(id, Integer.MAX_VALUE, false);
-		final var itemPanel = new SidebarItemPanel(item, name, image);
-		
+		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
+		final var itemPanel = new SidebarItemPanel(item, item.getItemName(), image);
+
 		itemPanelLookup.put(item, itemPanel);
 		itemContainer.add(itemPanel);
 		itemContainer.revalidate();
@@ -60,7 +58,7 @@ public class SidebarPanel extends PluginPanel
 
 	public void removeItemPanel(TrackedItem item)
 	{
-		SidebarItemPanel removed = itemPanelLookup.remove(item);
+		final SidebarItemPanel removed = itemPanelLookup.remove(item);
 		if (removed == null)
 		{
 			throw new IllegalArgumentException("Panel doesn't exist for item with ID: " + item.getItemID());
@@ -73,7 +71,7 @@ public class SidebarPanel extends PluginPanel
 
 	public void refreshItemPanel(TrackedItem item)
 	{
-		SidebarItemPanel itemPanel = itemPanelLookup.get(item);
+		final SidebarItemPanel itemPanel = itemPanelLookup.get(item);
 		if (itemPanel == null)
 		{
 			throw new IllegalArgumentException("Panel doesn't exist for item with ID: " + item.getItemID());

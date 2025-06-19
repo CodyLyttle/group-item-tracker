@@ -15,6 +15,12 @@ public class ItemIdentifier
 		this.itemManager = manager;
 	}
 
+	public String getName(int itemID)
+	{
+		return itemManager.getItemComposition(itemID)
+			.getMembersName();
+	}
+
 	public int getBaseID(int itemID)
 	{
 		return ItemVariationMapping.map(

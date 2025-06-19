@@ -25,39 +25,41 @@ public class ItemTracker
 	{
 		return Collections.unmodifiableCollection(itemLookup.values());
 	}
-	
+
 	public boolean containsItem(int itemID)
 	{
-		int baseID = itemIdentifier.getBaseID(itemID);
+		final int baseID = itemIdentifier.getBaseID(itemID);
 		return itemLookup.containsKey(baseID);
 	}
 
 	public TrackedItem addItem(int itemID)
 	{
-		final int trackedID = itemIdentifier.getBaseID(itemID);
+		final int baseID = itemIdentifier.getBaseID(itemID);
+		final String name = itemIdentifier.getName(itemID);
 
-		if (itemLookup.containsKey(trackedID))
+		if (itemLookup.containsKey(baseID))
 		{
-			throw new IllegalArgumentException("Cannot add an already tracked item");
+			throw new IllegalArgumentException("Already tracking item: " + name);
 		}
 
-		final var trackedItem = new TrackedItem(trackedID);
-		itemLookup.put(trackedID, trackedItem);
+		final var trackedItem = new TrackedItem(baseID, name);
+		itemLookup.put(baseID, trackedItem);
 
+		// Initialize location counters.
 		for (var container : TrackedContainer.values())
 		{
-			Optional<Item[]> containerItems = containerReader.getItems(container);
+			final Optional<Item[]> containerItems = containerReader.getItems(container);
 			if (containerItems.isEmpty())
 			{
 				continue;
 			}
 
-			for (Item item : containerItems.get())
+			for (Item containerItem : containerItems.get())
 			{
-				int baseItemID = itemIdentifier.getBaseID(item.getId());
-				if (baseItemID == trackedID)
+				final int containerItemBaseID = itemIdentifier.getBaseID(containerItem.getId());
+				if (containerItemBaseID == baseID)
 				{
-					trackedItem.increaseContainerCounter(container, item.getQuantity());
+					trackedItem.increaseContainerCounter(container, containerItem.getQuantity());
 				}
 			}
 		}
@@ -67,11 +69,12 @@ public class ItemTracker
 
 	public TrackedItem removeItem(int itemID)
 	{
-		final int trackedID = itemIdentifier.getBaseID(itemID);
-		TrackedItem removed = itemLookup.remove(trackedID);
+		final int baseID = itemIdentifier.getBaseID(itemID);
+		final TrackedItem removed = itemLookup.remove(baseID);
 		if (removed == null)
 		{
-			throw new IllegalArgumentException("Cannot remove an untracked item");
+			final String itemName = itemIdentifier.getName(itemID);
+			throw new IllegalArgumentException("Cannot remove untracked item: " + itemName);
 		}
 
 		return removed;
@@ -79,26 +82,26 @@ public class ItemTracker
 
 	public void refreshContainer(TrackedContainer container)
 	{
-		final Optional<Item[]> itemsQuery = containerReader.getItems(container);
+		final Optional<Item[]> containerItems = containerReader.getItems(container);
 
 		// Can't update an unavailable container - e.g. bank isn't open.
-		if (itemsQuery.isEmpty())
+		if (containerItems.isEmpty())
 		{
 			return;
 		}
 
-		for (TrackedItem item : itemLookup.values())
+		for (TrackedItem trackedItem : itemLookup.values())
 		{
-			item.resetContainerCounter(container);
+			trackedItem.resetContainerCounter(container);
 		}
 
-		for (var item : itemsQuery.get())
+		for (Item containerItem : containerItems.get())
 		{
-			int lookupKey = itemIdentifier.getBaseID(item.getId());
-			TrackedItem match = itemLookup.get(lookupKey);
-			if (match != null)
+			final int containerItemBaseID = itemIdentifier.getBaseID(containerItem.getId());
+			final TrackedItem trackedItem = itemLookup.get(containerItemBaseID);
+			if (trackedItem != null)
 			{
-				match.increaseContainerCounter(container, item.getQuantity());
+				trackedItem.increaseContainerCounter(container, containerItem.getQuantity());
 			}
 		}
 	}

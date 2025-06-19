@@ -9,10 +9,14 @@ public class TrackedItem
 
 	@Getter
 	private final int itemID;
+	
+	@Getter
+	private final String itemName;
 
-	public TrackedItem(int itemID)
+	public TrackedItem(int itemID, String itemName)
 	{
 		this.itemID = itemID;
+		this.itemName = itemName;
 
 		containerCounters = new EnumMap<>(TrackedContainer.class);
 		for (var container : TrackedContainer.values())
@@ -33,7 +37,7 @@ public class TrackedItem
 		assert value > 0;
 		assert containerCounters.containsKey(container);
 
-		Integer existingValue = containerCounters.get(container);
+		final int existingValue = containerCounters.get(container);
 		containerCounters.put(container, existingValue + value);
 	}
 
