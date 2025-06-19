@@ -100,7 +100,7 @@ public class SidebarItemPanel extends PluginPanel
 
 	private String buildLocationsString()
 	{
-		StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder();
 		boolean firstLocation = true;
 
 		for (var container : TrackedContainer.values())

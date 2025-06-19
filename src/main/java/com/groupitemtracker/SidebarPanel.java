@@ -2,8 +2,8 @@ package com.groupitemtracker;
 
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Comparator;
+import java.util.TreeMap;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
@@ -18,7 +18,8 @@ public class SidebarPanel extends PluginPanel
 {
 	private final ItemManager itemManager;
 	private final JPanel itemContainer;
-	private final Map<TrackedItem, SidebarItemPanel> itemPanelLookup = new HashMap<>();
+	private final TreeMap<TrackedItem, SidebarItemPanel> itemPanelLookup = new TreeMap<>(
+		Comparator.comparing(TrackedItem::getItemName));
 
 	public SidebarPanel(ItemManager itemManager)
 	{
@@ -44,14 +45,15 @@ public class SidebarPanel extends PluginPanel
 	{
 		if (itemPanelLookup.containsKey(item))
 		{
-			throw new IllegalArgumentException("Panel already exists for item: " + item.getItemID());
+			throw new IllegalArgumentException("Panel already exists for item: " + item.getItemName());
 		}
 
 		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
 		final var itemPanel = new SidebarItemPanel(item, item.getItemName(), image);
 
 		itemPanelLookup.put(item, itemPanel);
-		itemContainer.add(itemPanel);
+		final int sortedIndex = itemPanelLookup.headMap(item).size();
+		itemContainer.add(itemPanel, sortedIndex);
 		itemContainer.revalidate();
 		itemContainer.repaint();
 	}
@@ -61,7 +63,7 @@ public class SidebarPanel extends PluginPanel
 		final SidebarItemPanel removed = itemPanelLookup.remove(item);
 		if (removed == null)
 		{
-			throw new IllegalArgumentException("Panel doesn't exist for item with ID: " + item.getItemID());
+			throw new IllegalArgumentException("Panel doesn't exist for item: " + item.getItemName());
 		}
 
 		itemContainer.remove(removed);
@@ -74,7 +76,7 @@ public class SidebarPanel extends PluginPanel
 		final SidebarItemPanel itemPanel = itemPanelLookup.get(item);
 		if (itemPanel == null)
 		{
-			throw new IllegalArgumentException("Panel doesn't exist for item with ID: " + item.getItemID());
+			throw new IllegalArgumentException("Panel doesn't exist for item: " + item.getItemName());
 		}
 
 		itemPanel.refresh();
