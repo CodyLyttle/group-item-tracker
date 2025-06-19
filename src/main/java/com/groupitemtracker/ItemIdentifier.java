@@ -2,6 +2,7 @@ package com.groupitemtracker;
 
 import com.google.inject.Inject;
 import java.util.Collection;
+import net.runelite.api.ItemComposition;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemVariationMapping;
 
@@ -19,6 +20,12 @@ public class ItemIdentifier
 	{
 		return itemManager.getItemComposition(itemID)
 			.getMembersName();
+	}
+
+	public boolean isPlaceholder(int itemID)
+	{
+		return itemManager.getItemComposition(itemID)
+			.getPlaceholderTemplateId() == 14401;
 	}
 
 	public int getBaseID(int itemID)

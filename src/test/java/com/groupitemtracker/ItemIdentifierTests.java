@@ -12,6 +12,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import org.mockito.Mock;
 import static org.mockito.Mockito.mock;
@@ -84,14 +85,27 @@ public class ItemIdentifierTests
 	@Test
 	public void getItemName()
 	{
-		// Returns members name.
-		final String expectedName = "Climbing Boots";
-		final var mockItemComposition = mock(ItemComposition.class);
-		when(mockItemComposition.getMembersName()).thenReturn(expectedName);
-		when(itemManager.getItemComposition(anyInt())).thenReturn(mockItemComposition);
+		final String expectedName = "Climbing boots";
+		final var composition = mock(ItemComposition.class);
+		when(composition.getMembersName()).thenReturn(expectedName);
+		when(itemManager.getItemComposition(any())).thenReturn(composition);
 
-		final String actualName = sut.getName(123);
+		Assert.assertEquals(expectedName, sut.getName(123));
+	}
 
-		Assert.assertEquals(expectedName, actualName);
+	@Test
+	public void isPlaceholder()
+	{
+		final int itemID = 10;
+		final var itemComposition = mock(ItemComposition.class);
+		when(itemComposition.getPlaceholderTemplateId()).thenReturn(-1);
+		when(itemManager.getItemComposition(itemID)).thenReturn(itemComposition);
+		Assert.assertFalse(sut.isPlaceholder(itemID));
+
+		final int placeholderID = 20;
+		final var placeholderComposition = mock(ItemComposition.class);
+		when(placeholderComposition.getPlaceholderTemplateId()).thenReturn(14401);
+		when(itemManager.getItemComposition(placeholderID)).thenReturn(placeholderComposition);
+		Assert.assertTrue(sut.isPlaceholder(placeholderID));
 	}
 }

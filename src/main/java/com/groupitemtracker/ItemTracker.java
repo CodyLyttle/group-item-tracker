@@ -56,7 +56,13 @@ public class ItemTracker
 
 			for (Item containerItem : containerItems.get())
 			{
-				final int containerItemBaseID = itemIdentifier.getBaseID(containerItem.getId());
+				final int containerItemID = containerItem.getId();
+				if (itemIdentifier.isPlaceholder(containerItemID))
+				{
+					continue;
+				}
+
+				final int containerItemBaseID = itemIdentifier.getBaseID(containerItemID);
 				if (containerItemBaseID == baseID)
 				{
 					trackedItem.increaseContainerCounter(container, containerItem.getQuantity());
@@ -97,7 +103,13 @@ public class ItemTracker
 
 		for (Item containerItem : containerItems.get())
 		{
-			final int containerItemBaseID = itemIdentifier.getBaseID(containerItem.getId());
+			final int containerItemID = containerItem.getId();
+			if (itemIdentifier.isPlaceholder(containerItemID))
+			{
+				continue;
+			}
+
+			final int containerItemBaseID = itemIdentifier.getBaseID(containerItemID);
 			final TrackedItem trackedItem = itemLookup.get(containerItemBaseID);
 			if (trackedItem != null)
 			{

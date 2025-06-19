@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import net.runelite.api.gameval.ItemID;
-import net.runelite.client.util.OSXUtil;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -110,21 +109,29 @@ public class ItemTrackerTests
 	@Test
 	public void addItem()
 	{
-		TrackedItem firstItem = sut.addItem(VARIANT_ID);
-		TrackedItem secondItem = sut.addItem(2);
+		final int firstID = 1;
+		final int secondID = 2;
+		final int placeholderID = 3;
+		when(itemIdentifier.isPlaceholder(placeholderID)).thenReturn(true);
+		new FakeTrackedContainerBuilder(containerReader)
+			.in(TrackedContainer.BANK).set(firstID, 1).set(secondID, 5).set(placeholderID, 10)
+			.in(TrackedContainer.INVENTORY).set(firstID, 10);
+
+		final TrackedItem firstItem = sut.addItem(firstID);
+		final TrackedItem secondItem = sut.addItem(secondID);
+		final TrackedItem placeholderItem = sut.addItem(placeholderID);
+		final TrackedItem variantItem = sut.addItem(VARIANT_ID);
 
 		// Track by base ID.
-		Assert.assertEquals(BASE_ID, firstItem.getItemID());
-		Assert.assertEquals(2, secondItem.getItemID());
+		Assert.assertEquals(firstID, firstItem.getItemID());
+		Assert.assertEquals(BASE_ID, variantItem.getItemID());
 
 		// Initializes container counters.
-		new FakeTrackedContainerBuilder(containerReader)
-			.in(TrackedContainer.BANK).set(3, 5)
-			.in(TrackedContainer.INVENTORY).set(3, 10);
-		final TrackedItem thirdItem = sut.addItem(3);
-		assertTrackedItemState(firstItem, 0, 0, 0);
-		assertTrackedItemState(secondItem, 0, 0, 0);
-		assertTrackedItemState(thirdItem, 5, 0, 10);
+		assertTrackedItemState(firstItem, 1, 0, 10);
+		assertTrackedItemState(secondItem, 5, 0, 0);
+		assertTrackedItemState(variantItem, 0, 0, 0);
+		// Ignores placeholder items.
+		assertTrackedItemState(placeholderItem, 0, 0, 0);
 	}
 
 	@Test
@@ -178,6 +185,12 @@ public class ItemTrackerTests
 		builder.in(TrackedContainer.BANK).remove(secondID);
 		sut.refreshContainer(TrackedContainer.BANK);
 		assertTrackedItemState(secondItem, 0, 40, 50);
+
+		// Ignores placeholder items.
+		when(itemIdentifier.isPlaceholder(firstID)).thenReturn(true);
+		builder.in(TrackedContainer.BANK).set(firstID, 10);
+		sut.refreshContainer(TrackedContainer.BANK);
+		Assert.assertEquals(0, firstItem.getContainerCount(TrackedContainer.BANK));
 	}
 
 	private void assertTrackedItemState(TrackedItem item, int bank, int equipment, int inventory)
