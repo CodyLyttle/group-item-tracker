@@ -16,13 +16,15 @@ import net.runelite.client.util.AsyncBufferedImage;
 
 public class SidebarPanel extends PluginPanel
 {
+	private final GroupItemTrackerPlugin plugin;
 	private final ItemManager itemManager;
 	private final JPanel itemContainer;
 	private final TreeMap<TrackedItem, SidebarItemPanel> itemPanelLookup = new TreeMap<>(
 		Comparator.comparing(TrackedItem::getItemName));
 
-	public SidebarPanel(ItemManager itemManager)
+	public SidebarPanel(GroupItemTrackerPlugin plugin, ItemManager itemManager)
 	{
+		this.plugin = plugin;
 		this.itemManager = itemManager;
 
 		final var titleLabel = new JLabel();
@@ -49,13 +51,24 @@ public class SidebarPanel extends PluginPanel
 		}
 
 		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
-		final var itemPanel = new SidebarItemPanel(item, item.getItemName(), image);
+		final var itemPanel = new SidebarItemPanel(item, image, this::removeItemPanelCallback);
 
 		itemPanelLookup.put(item, itemPanel);
 		final int sortedIndex = itemPanelLookup.headMap(item).size();
 		itemContainer.add(itemPanel, sortedIndex);
 		itemContainer.revalidate();
 		itemContainer.repaint();
+	}
+
+	// Called by item panel.
+	private void removeItemPanelCallback(SidebarItemPanel panel)
+	{
+		itemContainer.remove(panel);
+		itemContainer.revalidate();
+		itemContainer.repaint();
+		TrackedItem item = panel.getTrackedItem();
+		itemPanelLookup.remove(item);
+		plugin.removeItem(item);
 	}
 
 	public void removeItemPanel(TrackedItem item)

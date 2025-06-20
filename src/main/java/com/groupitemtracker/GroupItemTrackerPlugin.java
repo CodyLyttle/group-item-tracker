@@ -2,7 +2,6 @@ package com.groupitemtracker;
 
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
-import java.util.Objects;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -79,7 +78,7 @@ public class GroupItemTrackerPlugin extends Plugin
 		eventBus.register(bankItemOverlay);
 		overlayManager.add(bankItemOverlay);
 
-		sidebarPanel = new SidebarPanel(itemManager);
+		sidebarPanel = new SidebarPanel(this, itemManager);
 		clientThread.invokeLater(() ->
 		{
 			final BufferedImage sidebarIcon = itemManager.getImage(ItemID.LEAGUE_BANKERS_NOTE);
@@ -113,7 +112,7 @@ public class GroupItemTrackerPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onItemContainerChanged(ItemContainerChanged event)
+	private void onItemContainerChanged(ItemContainerChanged event)
 	{
 		TrackedContainer.fromItemContainer(event.getItemContainer())
 			.ifPresent(container -> itemTracker.refreshContainer(container));
@@ -148,17 +147,17 @@ public class GroupItemTrackerPlugin extends Plugin
 					sidebarPanel.addItemPanel(addedItem);
 				}
 
-				ItemContainer bankContainer = Objects.requireNonNullElse(
-					client.getItemContainer(InventoryID.BANK),
-					client.getItemContainer(InventoryID.INV_GROUP_TEMP)
-				);
-				bankItemOverlay.refreshItemCache(bankContainer);
+				final ItemContainer bankContainer = tryGetBankContainer();
+				if (bankContainer != null)
+				{
+					bankItemOverlay.refreshItemCache(bankContainer);
+				}
 			});
 		}
 	}
 
 	@Subscribe(priority = -1) // Force callback to run after other plugins, specifically bank-tags.
-	public void onScriptCallbackEvent(ScriptCallbackEvent event)
+	private void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
 		final String eventName = event.getEventName();
 		final Object[] stringStack = client.getObjectStack();
@@ -185,5 +184,24 @@ public class GroupItemTrackerPlugin extends Plugin
 				}
 				break;
 		}
+	}
+
+	public void removeItem(TrackedItem item)
+	{
+		// Called from UI thread.
+		clientThread.invokeLater(() -> {
+			itemTracker.removeItem(item.getItemID());
+			ItemContainer bankContainer = tryGetBankContainer();
+			if (bankContainer != null)
+			{
+				bankItemOverlay.refreshItemCache(bankContainer);
+			}
+		});
+	}
+
+	private ItemContainer tryGetBankContainer()
+	{
+		ItemContainer bankContainer = client.getItemContainer(InventoryID.BANK);
+		return bankContainer != null ? bankContainer : client.getItemContainer(InventoryID.INV_GROUP_TEMP);
 	}
 }
