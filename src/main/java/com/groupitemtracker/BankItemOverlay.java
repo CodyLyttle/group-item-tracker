@@ -16,22 +16,33 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.WidgetItemOverlay;
 
-// Handles the highlighting of tracked items in the bank and group ironman bank interfaces.
+// Highlights tracked items in the bank and shared bank interfaces.
 // Item IDs are cached to avoid unnecessary calls to ItemManager.canonicalize.
 public class BankItemOverlay extends WidgetItemOverlay
 {
-	private static final Color OVERLAY_COLOR = Color.GREEN;
-
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
 	private final Set<Integer> itemCache = new HashSet<>();
+	private final GroupItemTrackerConfig config;
+	private boolean isEnabled;
+	private Color overlayColor;
+
 
 	@Inject
-	public BankItemOverlay(ItemManager itemManager, ItemTracker itemTracker)
+	public BankItemOverlay(GroupItemTrackerConfig config, ItemManager itemManager, ItemTracker itemTracker)
 	{
+		this.config = config;
 		this.itemManager = itemManager;
 		this.itemTracker = itemTracker;
+		isEnabled = config.useBankHighlights();
+		overlayColor = config.bankHighlightColor();
 		showOnBank();
+	}
+
+	public void refreshConfig()
+	{
+		isEnabled = config.useBankHighlights();
+		overlayColor = config.bankHighlightColor();
 	}
 
 	@Subscribe
@@ -44,7 +55,7 @@ public class BankItemOverlay extends WidgetItemOverlay
 		}
 	}
 
-	// Should be called whenever the item tracked is updated.
+	// Should be called whenever the item tracker is updated.
 	public void refreshItemCache(ItemContainer bankContainer)
 	{
 		assert bankContainer.getId() == InventoryID.BANK || bankContainer.getId() == InventoryID.INV_GROUP_TEMP;
@@ -64,7 +75,7 @@ public class BankItemOverlay extends WidgetItemOverlay
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
 		// Skip placeholders.
-		if (widgetItem.getQuantity() == 0)
+		if (!isEnabled || widgetItem.getQuantity() == 0)
 		{
 			return;
 		}
@@ -72,7 +83,7 @@ public class BankItemOverlay extends WidgetItemOverlay
 		if (itemCache.contains(itemId))
 		{
 			final Rectangle bounds = widgetItem.getCanvasBounds();
-			final BufferedImage outline = itemManager.getItemOutline(itemId, widgetItem.getQuantity(), OVERLAY_COLOR);
+			final BufferedImage outline = itemManager.getItemOutline(itemId, widgetItem.getQuantity(), overlayColor);
 			graphics.drawImage(outline, (int) bounds.getX(), (int) bounds.getY(), null);
 		}
 	}

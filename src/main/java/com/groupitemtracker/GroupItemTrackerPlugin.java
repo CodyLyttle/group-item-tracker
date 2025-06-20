@@ -19,6 +19,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -32,6 +33,7 @@ public class GroupItemTrackerPlugin extends Plugin
 {
 	private static final String BANK_SEARCH_KEYWORD = "/g";
 	private static final String BANK_SEARCH_KEYWORD_HINT = "<br>" + "Use " + BANK_SEARCH_KEYWORD + " to filter by group item tracker";
+	public static final String CONFIG_GROUP = "group-item-tracker";
 	private static final String MENU_OPTION_ADD = "Add to GIM item tracker";
 	private static final String MENU_OPTION_REMOVE = "Remove from GIM item tracker";
 
@@ -46,6 +48,9 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	@Inject
 	private GroupItemTrackerConfig config;
+
+	@Inject
+	private ConfigManager configManager;
 
 	@Inject
 	private EventBus eventBus;
@@ -64,6 +69,7 @@ public class GroupItemTrackerPlugin extends Plugin
 	private NavigationButton sidebarNavButton;
 
 	private SidebarPanel sidebarPanel;
+	private boolean useBankSearchFilter;
 
 	@Provides
 	GroupItemTrackerConfig provideConfig(ConfigManager configManager)
@@ -71,10 +77,25 @@ public class GroupItemTrackerPlugin extends Plugin
 		return configManager.getConfig(GroupItemTrackerConfig.class);
 	}
 
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (event.getGroup().equals(CONFIG_GROUP))
+		{
+			// Update all cached config values at once to keep things simple.
+			// Consider adding a switch statement if/when more config options are added.
+			if (event.getProfile() == null)
+			{
+				useBankSearchFilter = config.useBankFilter();
+				bankItemOverlay.refreshConfig();
+			}
+		}
+	}
+
 	@Override
 	protected void startUp()
 	{
-		bankItemOverlay = new BankItemOverlay(itemManager, itemTracker);
+		bankItemOverlay = new BankItemOverlay(config, itemManager, itemTracker);
 		eventBus.register(bankItemOverlay);
 		overlayManager.add(bankItemOverlay);
 
@@ -159,11 +180,14 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Subscribe(priority = -1) // Force callback to run after other plugins, specifically bank-tags.
 	private void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
-		final String eventName = event.getEventName();
+		if (!useBankSearchFilter)
+		{
+			return;
+		}
+
 		final Object[] stringStack = client.getObjectStack();
 		final int stringStackSize = client.getObjectStackSize();
-
-		switch (eventName)
+		switch (event.getEventName())
 		{
 			// Append bank search keyword hint.
 			case "setSearchBankInputText":
