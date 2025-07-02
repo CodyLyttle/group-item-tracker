@@ -31,7 +31,13 @@ public class ItemTracker
 		final int baseID = itemIdentifier.getBaseID(itemID);
 		return itemLookup.containsKey(baseID);
 	}
-
+	
+	public void clear()
+	{
+		itemLookup.clear();
+	}
+	
+	// TODO: Optimize counter initialization when adding multiple items.
 	public TrackedItem addItem(int itemID)
 	{
 		final int baseID = itemIdentifier.getBaseID(itemID);

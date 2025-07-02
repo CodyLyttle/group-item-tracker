@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.TreeMap;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
@@ -16,9 +17,13 @@ import net.runelite.client.util.AsyncBufferedImage;
 
 public class SidebarPanel extends PluginPanel
 {
+	private static final String LOGIN_HINT_LABEL = "Login to view your tracked items";
+	private static final String TUTORIAL_HINT_LABEL = "Right-click bank item to track";
+
 	private final GroupItemTrackerPlugin plugin;
 	private final ItemManager itemManager;
 	private final JPanel itemContainer;
+	private final JLabel hintLabel;
 	private final TreeMap<TrackedItem, SidebarItemPanel> itemPanelLookup = new TreeMap<>(
 		Comparator.comparing(TrackedItem::getItemName));
 
@@ -27,20 +32,36 @@ public class SidebarPanel extends PluginPanel
 		this.plugin = plugin;
 		this.itemManager = itemManager;
 
-		final var titleLabel = new JLabel();
-		titleLabel.setText("Group Item Tracker");
-		titleLabel.setFont(FontManager.getRunescapeFont());
-		final var titlePanel = new JPanel(new BorderLayout());
-		titlePanel.setBorder(new EmptyBorder(8, 12, 8, 12));
-		titlePanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		titlePanel.add(titleLabel, BorderLayout.CENTER);
+		final var header = new JLabel("Group Item Tracker");
+		header.setFont(FontManager.getRunescapeFont());
+		header.setHorizontalAlignment(SwingConstants.CENTER);
+		hintLabel = new JLabel(LOGIN_HINT_LABEL);
+		hintLabel.setFont(FontManager.getRunescapeSmallFont());
+		hintLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		final var headerPanel = new JPanel(new BorderLayout());
+		headerPanel.setBorder(new EmptyBorder(8, 12, 8, 12));
+		headerPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		headerPanel.add(header, BorderLayout.NORTH);
+		headerPanel.add(hintLabel, BorderLayout.SOUTH);
 
 		itemContainer = new JPanel(new GridLayout(0, 1, 0, 4));
 
 		setBorder(new EmptyBorder(6, 6, 6, 6));
 		setLayout(new DynamicGridLayout(2, 1, 0, 4));
-		add(titlePanel, BorderLayout.NORTH);
+		add(headerPanel, BorderLayout.NORTH);
 		add(itemContainer, BorderLayout.CENTER);
+	}
+
+	public void login()
+	{
+		hintLabel.setText(TUTORIAL_HINT_LABEL);
+	}
+
+	public void logout()
+	{
+		itemContainer.removeAll();
+		itemPanelLookup.clear();
+		hintLabel.setText(LOGIN_HINT_LABEL);
 	}
 
 	public void addItemPanel(TrackedItem item)

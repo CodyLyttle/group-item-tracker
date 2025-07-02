@@ -134,6 +134,7 @@ public class ItemTrackerTests
 		assertTrackedItemState(placeholderItem, 0, 0, 0);
 	}
 
+
 	@Test
 	public void removeItem()
 	{
@@ -147,6 +148,21 @@ public class ItemTrackerTests
 
 		Assert.assertEquals(1, items.size());
 		Assert.assertTrue(items.contains(itemB));
+	}
+
+	@Test
+	public void clear()
+	{
+		sut.addItem(1);
+		sut.addItem(2);
+
+		// Clears items.
+		sut.clear();
+		Assert.assertTrue(sut.getItems().isEmpty());
+
+		// Re-add items without duplicate ID exception.
+		sut.addItem(1);
+		sut.addItem(2);
 	}
 
 	@Test

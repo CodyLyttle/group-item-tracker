@@ -1,13 +1,18 @@
 package com.groupitemtracker;
 
+import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
+import java.util.List;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.Menu;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
@@ -34,6 +39,7 @@ public class GroupItemTrackerPlugin extends Plugin
 	private static final String BANK_SEARCH_KEYWORD = "/g";
 	private static final String BANK_SEARCH_KEYWORD_HINT = "<br>" + "Use " + BANK_SEARCH_KEYWORD + " to filter by group item tracker";
 	public static final String CONFIG_GROUP = "group-item-tracker";
+	public static final String CONFIG_KEY_TRACKED_ITEMS = "tracked-items";
 	private static final String MENU_OPTION_ADD = "Add to GIM item tracker";
 	private static final String MENU_OPTION_REMOVE = "Remove from GIM item tracker";
 
@@ -56,6 +62,8 @@ public class GroupItemTrackerPlugin extends Plugin
 	private EventBus eventBus;
 
 	@Inject
+	private Gson gson;
+	@Inject
 	private ItemManager itemManager;
 
 	@Inject
@@ -70,6 +78,7 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	private SidebarPanel sidebarPanel;
 	private boolean useBankSearchFilter;
+	private boolean isProfileLoaded;
 
 	@Provides
 	GroupItemTrackerConfig provideConfig(ConfigManager configManager)
@@ -109,6 +118,11 @@ public class GroupItemTrackerPlugin extends Plugin
 				.panel(sidebarPanel)
 				.build();
 			clientToolbar.addNavigation(sidebarNavButton);
+
+			if (client.getGameState() == GameState.LOGGED_IN)
+			{
+				loadProfile();
+			}
 		});
 	}
 
@@ -119,9 +133,63 @@ public class GroupItemTrackerPlugin extends Plugin
 		overlayManager.remove(bankItemOverlay);
 		bankItemOverlay = null;
 
+		unloadProfile();
 		clientToolbar.removeNavigation(sidebarNavButton);
 		sidebarPanel = null;
 	}
+
+	@Subscribe
+	private void onGameStateChanged(GameStateChanged event)
+	{
+		if (isProfileLoaded && event.getGameState() == GameState.LOGIN_SCREEN)
+		{
+			unloadProfile();
+		}
+		else if (!isProfileLoaded && event.getGameState() == GameState.LOADING)
+		{
+			loadProfile();
+		}
+	}
+
+	private void loadProfile()
+	{
+		isProfileLoaded = true;
+		sidebarPanel.login();
+
+		final String json = configManager.getRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY_TRACKED_ITEMS);
+		if (json == null)
+		{
+			// Config value hasn't been written to this profile yet.
+			return;
+		}
+
+		final var trackedItemIDs = gson.fromJson(
+			configManager.getRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY_TRACKED_ITEMS),
+			int[].class);
+
+		for (int id : trackedItemIDs)
+		{
+			sidebarPanel.addItemPanel(itemTracker.addItem(id));
+		}
+	}
+
+	private void unloadProfile()
+	{
+		itemTracker.clear();
+		sidebarPanel.logout();
+		isProfileLoaded = false;
+	}
+
+	private void persistTrackedItems()
+	{
+		final List<Integer> itemIDs = itemTracker.getItems().stream()
+			.map(TrackedItem::getItemID)
+			.collect(Collectors.toList());
+
+		final String json = gson.toJson(itemIDs);
+		configManager.setRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY_TRACKED_ITEMS, json);
+	}
+
 
 	@Subscribe
 	private void onGameTick(GameTick event)
@@ -167,6 +235,8 @@ public class GroupItemTrackerPlugin extends Plugin
 					TrackedItem addedItem = itemTracker.addItem(itemID);
 					sidebarPanel.addItemPanel(addedItem);
 				}
+
+				persistTrackedItems();
 
 				final ItemContainer bankContainer = tryGetBankContainer();
 				if (bankContainer != null)
@@ -215,6 +285,7 @@ public class GroupItemTrackerPlugin extends Plugin
 		// Called from UI thread.
 		clientThread.invokeLater(() -> {
 			itemTracker.removeItem(item.getItemID());
+			persistTrackedItems();
 			ItemContainer bankContainer = tryGetBankContainer();
 			if (bankContainer != null)
 			{
