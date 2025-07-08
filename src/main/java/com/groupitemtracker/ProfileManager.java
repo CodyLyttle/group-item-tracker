@@ -11,7 +11,6 @@ import net.runelite.client.eventbus.Subscribe;
 
 public class ProfileManager
 {
-	public static final String CONFIG_GROUP = GroupItemTrackerPlugin.CONFIG_GROUP;
 	public static final String CONFIG_KEY_TRACKED_ITEMS = "tracked-items";
 	private final ConfigManager configManager;
 	private final Gson gson;
@@ -44,12 +43,12 @@ public class ProfileManager
 			.collect(Collectors.toList());
 
 		final String json = gson.toJson(itemIDs);
-		configManager.setRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY_TRACKED_ITEMS, json);
+		configManager.setRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS, json);
 	}
 
 	public int[] readTrackedItemIDs()
 	{
-		final String json = configManager.getRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY_TRACKED_ITEMS);
+		final String json = configManager.getRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS);
 		return json == null ? new int[0] : gson.fromJson(json, int[].class);
 	}
 }

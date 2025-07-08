@@ -5,11 +5,16 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 
-@ConfigGroup("group-item-tracker")
+@ConfigGroup(GroupItemTrackerConfig.GROUP)
 public interface GroupItemTrackerConfig extends Config
 {
+	String GROUP = "group-item-tracker";
+	String KEY_BANK_FILTER = "bank-filter";
+	String KEY_BANK_HIGHLIGHTS = "bank-highlights";
+	String KEY_BANK_HIGHLIGHTS_COLOR = "bank-highlights-color";
+
 	@ConfigItem(
-		keyName = "bank-filter",
+		keyName = GroupItemTrackerConfig.KEY_BANK_FILTER,
 		name = "Bank search filter",
 		description = "Enter '/g' in the bank search interface to display all tracked items.")
 	default boolean useBankFilter()
@@ -18,7 +23,7 @@ public interface GroupItemTrackerConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "bank-highlights",
+		keyName = GroupItemTrackerConfig.KEY_BANK_HIGHLIGHTS,
 		name = "Highlight bank items",
 		description = "Highlights all tracked items in the bank.")
 	default boolean useBankHighlights()
@@ -27,7 +32,7 @@ public interface GroupItemTrackerConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "bank-highlights-color",
+		keyName = GroupItemTrackerConfig.KEY_BANK_HIGHLIGHTS_COLOR,
 		name = "Highlight color",
 		description = "The color used to highlight tracked items in the bank.")
 	default Color bankHighlightColor()
