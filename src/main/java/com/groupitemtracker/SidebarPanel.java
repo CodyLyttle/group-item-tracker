@@ -1,5 +1,8 @@
 package com.groupitemtracker;
 
+import com.groupitemtracker.events.ItemAdded;
+import com.groupitemtracker.events.ItemRemoved;
+import com.groupitemtracker.events.ItemUpdated;
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
 import java.util.Comparator;
@@ -8,6 +11,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
+import net.runelite.client.callback.ClientThread;
+import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.DynamicGridLayout;
@@ -20,17 +25,18 @@ public class SidebarPanel extends PluginPanel
 	private static final String LOGIN_HINT_LABEL = "Login to view your tracked items";
 	private static final String TUTORIAL_HINT_LABEL = "Right-click bank item to track";
 
-	private final GroupItemTrackerPlugin plugin;
+	private final ClientThread clientThread;
 	private final ItemManager itemManager;
+	private final ItemTracker itemTracker;
 	private final JPanel itemContainer;
 	private final JLabel hintLabel;
-	private final TreeMap<TrackedItem, SidebarItemPanel> itemPanelLookup = new TreeMap<>(
-		Comparator.comparing(TrackedItem::getItemName));
+	private final TreeMap<TrackedItem, SidebarItemPanel> itemPanelLookup = new TreeMap<>(Comparator.comparing(TrackedItem::getItemName));
 
-	public SidebarPanel(GroupItemTrackerPlugin plugin, ItemManager itemManager)
+	public SidebarPanel(ClientThread clientThread, ItemManager itemManager, ItemTracker itemTracker)
 	{
-		this.plugin = plugin;
+		this.clientThread = clientThread;
 		this.itemManager = itemManager;
+		this.itemTracker = itemTracker;
 
 		final var header = new JLabel("Group Item Tracker");
 		header.setFont(FontManager.getRunescapeFont());
@@ -55,45 +61,49 @@ public class SidebarPanel extends PluginPanel
 	public void login()
 	{
 		hintLabel.setText(TUTORIAL_HINT_LABEL);
+		for (TrackedItem item : itemTracker.getItems())
+		{
+			addItem(item);
+		}
+
+		itemContainer.revalidate();
+		itemContainer.repaint();
 	}
 
 	public void logout()
 	{
+		hintLabel.setText(LOGIN_HINT_LABEL);
 		itemContainer.removeAll();
 		itemPanelLookup.clear();
-		hintLabel.setText(LOGIN_HINT_LABEL);
 	}
 
-	public void addItemPanel(TrackedItem item)
+	private void addItem(TrackedItem item)
 	{
+		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
+		final var itemPanel = new SidebarItemPanel(clientThread, itemTracker, item, image);
+		itemPanelLookup.put(item, itemPanel);
+		final int sortedIndex = itemPanelLookup.headMap(item).size();
+		itemContainer.add(itemPanel, sortedIndex);
+	}
+
+	@Subscribe
+	public void onItemAdded(ItemAdded event)
+	{
+		TrackedItem item = event.getItem();
 		if (itemPanelLookup.containsKey(item))
 		{
 			throw new IllegalArgumentException("Panel already exists for item: " + item.getItemName());
 		}
 
-		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
-		final var itemPanel = new SidebarItemPanel(item, image, this::removeItemPanelCallback);
-
-		itemPanelLookup.put(item, itemPanel);
-		final int sortedIndex = itemPanelLookup.headMap(item).size();
-		itemContainer.add(itemPanel, sortedIndex);
+		addItem(item);
 		itemContainer.revalidate();
 		itemContainer.repaint();
 	}
 
-	// Called by item panel.
-	private void removeItemPanelCallback(SidebarItemPanel panel)
+	@Subscribe
+	private void onItemRemoved(ItemRemoved event)
 	{
-		itemContainer.remove(panel);
-		itemContainer.revalidate();
-		itemContainer.repaint();
-		TrackedItem item = panel.getTrackedItem();
-		itemPanelLookup.remove(item);
-		plugin.removeItem(item);
-	}
-
-	public void removeItemPanel(TrackedItem item)
-	{
+		TrackedItem item = event.getItem();
 		final SidebarItemPanel removed = itemPanelLookup.remove(item);
 		if (removed == null)
 		{
@@ -105,8 +115,10 @@ public class SidebarPanel extends PluginPanel
 		itemContainer.repaint();
 	}
 
-	public void refreshItemPanel(TrackedItem item)
+	@Subscribe
+	private void onItemUpdated(ItemUpdated event)
 	{
+		TrackedItem item = event.getItem();
 		final SidebarItemPanel itemPanel = itemPanelLookup.get(item);
 		if (itemPanel == null)
 		{

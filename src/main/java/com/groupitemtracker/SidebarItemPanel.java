@@ -4,16 +4,15 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.GridLayout;
-import java.util.EnumMap;
-import java.util.function.Consumer;
+import java.awt.event.ActionEvent;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Constants;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
@@ -29,25 +28,20 @@ public class SidebarItemPanel extends PluginPanel
 	private static final Color TEXT_COLOR_PRIMARY = ColorScheme.BRAND_ORANGE;
 	private static final Color TEXT_COLOR_SECONDARY = Color.gray;
 	private static final String DELETE_TOOLTIP = "Remove from GIM item tracker";
-	private static final ImageIcon DELETE_ICON = new ImageIcon(
-		ImageUtil.loadImageResource(PluginPanel.class, "/delete_icon.png"));
+	private static final ImageIcon DELETE_ICON = new ImageIcon(ImageUtil.loadImageResource(PluginPanel.class, "/delete_icon.png"));
 
 	private final JLabel nameLabel;
 	private final JLabel locationsLabel;
-	private final EnumMap<TrackedContainer, Boolean> itemLocationsSnapshot;
 
-	@Getter
+	private final ClientThread clientThread;
+	private final ItemTracker itemTracker;
 	private final TrackedItem trackedItem;
 
-	public SidebarItemPanel(TrackedItem trackedItem, AsyncBufferedImage itemIcon, Consumer<SidebarItemPanel> removePanelCallback)
+	public SidebarItemPanel(ClientThread clientThread, ItemTracker itemTracker, TrackedItem trackedItem, AsyncBufferedImage itemIcon)
 	{
+		this.clientThread = clientThread;
+		this.itemTracker = itemTracker;
 		this.trackedItem = trackedItem;
-		itemLocationsSnapshot = new EnumMap<>(TrackedContainer.class);
-		for (var container : TrackedContainer.values())
-		{
-			boolean isPresent = trackedItem.getContainerCount(container) > 0;
-			itemLocationsSnapshot.put(container, isPresent);
-		}
 
 		final var icon = new JLabel();
 		icon.setMinimumSize(new Dimension(Constants.ITEM_SPRITE_WIDTH, Constants.ITEM_SPRITE_HEIGHT));
@@ -67,7 +61,7 @@ public class SidebarItemPanel extends PluginPanel
 		final var removeButton = new JButton();
 		removeButton.setIcon(DELETE_ICON);
 		removeButton.setToolTipText(DELETE_TOOLTIP);
-		removeButton.addActionListener(e -> removePanelCallback.accept(this));
+		removeButton.addActionListener(this::removeFromItemTracker);
 		SwingUtil.removeButtonDecorations(removeButton);
 		final var buttonContainer = new JPanel(new BorderLayout());
 		buttonContainer.setBorder(new EmptyBorder(6, 6, 6, 6));
@@ -80,47 +74,24 @@ public class SidebarItemPanel extends PluginPanel
 		this.add(icon, BorderLayout.WEST);
 		this.add(buttonContainer, BorderLayout.EAST);
 		this.add(infoPanel, BorderLayout.CENTER);
-		updateStyle();
+		refresh();
+	}
+
+	private void removeFromItemTracker(ActionEvent e)
+	{
+		clientThread.invoke(() -> itemTracker.removeItem(trackedItem.getItemID()));
 	}
 
 	public void refresh()
 	{
-		if (tryUpdateSnapshot())
-		{
-			updateStyle();
-			repaint();
-		}
-	}
-
-	private boolean tryUpdateSnapshot()
-	{
-		boolean wasUpdated = false;
-
-		for (var container : TrackedContainer.values())
-		{
-			Boolean wasPresent = itemLocationsSnapshot.get(container);
-			boolean isPresent = trackedItem.getContainerCount(container) > 0;
-			if (wasPresent != isPresent)
-			{
-				itemLocationsSnapshot.put(container, isPresent);
-				wasUpdated = true;
-			}
-		}
-
-		return wasUpdated;
-	}
-
-	private void updateStyle()
-	{
 		final String locations = buildLocationsString();
-		final Color nameColor = locations.isEmpty()
-			? TEXT_COLOR_SECONDARY
-			: TEXT_COLOR_PRIMARY;
-
+		final Color nameColor = locations.isEmpty() ? TEXT_COLOR_SECONDARY : TEXT_COLOR_PRIMARY;
 		locationsLabel.setText(locations);
 		nameLabel.setForeground(nameColor);
+		repaint();
 	}
 
+	// TODO: Should we cache location strings to minimize allocations?
 	private String buildLocationsString()
 	{
 		final StringBuilder sb = new StringBuilder();
@@ -128,16 +99,18 @@ public class SidebarItemPanel extends PluginPanel
 
 		for (var container : TrackedContainer.values())
 		{
-			if (itemLocationsSnapshot.get(container))
+			if (trackedItem.getContainerCount(container) == 0)
 			{
-				if (!firstLocation)
-				{
-					sb.append(", ");
-				}
-
-				sb.append(container.description);
-				firstLocation = false;
+				continue;
 			}
+
+			if (!firstLocation)
+			{
+				sb.append(", ");
+			}
+
+			sb.append(container.description);
+			firstLocation = false;
 		}
 
 		return sb.toString();

@@ -3,8 +3,6 @@ package com.groupitemtracker;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
-import java.util.List;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -13,8 +11,6 @@ import net.runelite.api.ItemContainer;
 import net.runelite.api.Menu;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.events.GameStateChanged;
-import net.runelite.api.events.GameTick;
-import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.gameval.InterfaceID;
@@ -39,7 +35,6 @@ public class GroupItemTrackerPlugin extends Plugin
 	private static final String BANK_SEARCH_KEYWORD = "/g";
 	private static final String BANK_SEARCH_KEYWORD_HINT = "<br>" + "Use " + BANK_SEARCH_KEYWORD + " to filter by group item tracker";
 	public static final String CONFIG_GROUP = "group-item-tracker";
-	public static final String CONFIG_KEY_TRACKED_ITEMS = "tracked-items";
 	private static final String MENU_OPTION_ADD = "Add to GIM item tracker";
 	private static final String MENU_OPTION_REMOVE = "Remove from GIM item tracker";
 
@@ -63,6 +58,7 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	@Inject
 	private Gson gson;
+	
 	@Inject
 	private ItemManager itemManager;
 
@@ -72,10 +68,11 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Inject
 	private OverlayManager overlayManager;
 
+	@Inject
+	private ProfileManager profileManager;
+	
 	private BankItemOverlay bankItemOverlay;
-
 	private NavigationButton sidebarNavButton;
-
 	private SidebarPanel sidebarPanel;
 	private boolean useBankSearchFilter;
 	private boolean isProfileLoaded;
@@ -105,10 +102,9 @@ public class GroupItemTrackerPlugin extends Plugin
 	protected void startUp()
 	{
 		bankItemOverlay = new BankItemOverlay(config, itemManager, itemTracker);
-		eventBus.register(bankItemOverlay);
 		overlayManager.add(bankItemOverlay);
-
-		sidebarPanel = new SidebarPanel(this, itemManager);
+		
+		sidebarPanel = new SidebarPanel(clientThread, itemManager, itemTracker);
 		clientThread.invokeLater(() ->
 		{
 			final BufferedImage sidebarIcon = itemManager.getImage(ItemID.LEAGUE_BANKERS_NOTE);
@@ -124,12 +120,21 @@ public class GroupItemTrackerPlugin extends Plugin
 				loadProfile();
 			}
 		});
+
+		eventBus.register(bankItemOverlay);
+		eventBus.register(itemTracker);
+		eventBus.register(profileManager);
+		eventBus.register(sidebarPanel);
 	}
 
 	@Override
 	protected void shutDown()
 	{
 		eventBus.unregister(bankItemOverlay);
+		eventBus.unregister(itemTracker);
+		eventBus.unregister(profileManager);
+		eventBus.unregister(sidebarPanel);
+
 		overlayManager.remove(bankItemOverlay);
 		bankItemOverlay = null;
 
@@ -154,57 +159,15 @@ public class GroupItemTrackerPlugin extends Plugin
 	private void loadProfile()
 	{
 		isProfileLoaded = true;
+		itemTracker.loadProfile(profileManager);
 		sidebarPanel.login();
-
-		final String json = configManager.getRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY_TRACKED_ITEMS);
-		if (json == null)
-		{
-			// Config value hasn't been written to this profile yet.
-			return;
-		}
-
-		final var trackedItemIDs = gson.fromJson(
-			configManager.getRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY_TRACKED_ITEMS),
-			int[].class);
-
-		for (int id : trackedItemIDs)
-		{
-			sidebarPanel.addItemPanel(itemTracker.addItem(id));
-		}
 	}
 
 	private void unloadProfile()
 	{
-		itemTracker.clear();
+		itemTracker.clearProfile();
 		sidebarPanel.logout();
 		isProfileLoaded = false;
-	}
-
-	private void persistTrackedItems()
-	{
-		final List<Integer> itemIDs = itemTracker.getItems().stream()
-			.map(TrackedItem::getItemID)
-			.collect(Collectors.toList());
-
-		final String json = gson.toJson(itemIDs);
-		configManager.setRSProfileConfiguration(CONFIG_GROUP, CONFIG_KEY_TRACKED_ITEMS, json);
-	}
-
-
-	@Subscribe
-	private void onGameTick(GameTick event)
-	{
-		for (var item : itemTracker.getItems())
-		{
-			sidebarPanel.refreshItemPanel(item);
-		}
-	}
-
-	@Subscribe
-	private void onItemContainerChanged(ItemContainerChanged event)
-	{
-		TrackedContainer.fromItemContainer(event.getItemContainer())
-			.ifPresent(container -> itemTracker.refreshContainer(container));
 	}
 
 	@Subscribe
@@ -227,16 +190,12 @@ public class GroupItemTrackerPlugin extends Plugin
 			{
 				if (isTracked)
 				{
-					TrackedItem removedItem = itemTracker.removeItem(itemID);
-					sidebarPanel.removeItemPanel(removedItem);
+					itemTracker.removeItem(itemID);
 				}
 				else
 				{
-					TrackedItem addedItem = itemTracker.addItem(itemID);
-					sidebarPanel.addItemPanel(addedItem);
+					itemTracker.addItem(itemID);
 				}
-
-				persistTrackedItems();
 
 				final ItemContainer bankContainer = tryGetBankContainer();
 				if (bankContainer != null)
@@ -278,20 +237,6 @@ public class GroupItemTrackerPlugin extends Plugin
 				}
 				break;
 		}
-	}
-
-	public void removeItem(TrackedItem item)
-	{
-		// Called from UI thread.
-		clientThread.invokeLater(() -> {
-			itemTracker.removeItem(item.getItemID());
-			persistTrackedItems();
-			ItemContainer bankContainer = tryGetBankContainer();
-			if (bankContainer != null)
-			{
-				bankItemOverlay.refreshItemCache(bankContainer);
-			}
-		});
 	}
 
 	private ItemContainer tryGetBankContainer()

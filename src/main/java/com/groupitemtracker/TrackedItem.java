@@ -9,13 +9,13 @@ public class TrackedItem
 
 	@Getter
 	private final int itemID;
-	
+
 	@Getter
 	private final String itemName;
 
-	public TrackedItem(int itemID, String itemName)
+	public TrackedItem(int baseID, String itemName)
 	{
-		this.itemID = itemID;
+		this.itemID = baseID;
 		this.itemName = itemName;
 
 		containerCounters = new EnumMap<>(TrackedContainer.class);
@@ -55,5 +55,15 @@ public class TrackedItem
 		}
 
 		return sum;
+	}
+	
+	public boolean matchesSnapshot(TrackedItemSnapshot snapshot)
+	{
+		return snapshot.equals(containerCounters);
+	}
+
+	public TrackedItemSnapshot createSnapshot()
+	{
+		return new TrackedItemSnapshot(containerCounters);
 	}
 }

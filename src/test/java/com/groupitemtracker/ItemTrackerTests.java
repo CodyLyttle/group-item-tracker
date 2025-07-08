@@ -157,7 +157,7 @@ public class ItemTrackerTests
 		sut.addItem(2);
 
 		// Clears items.
-		sut.clear();
+		sut.clearProfile();
 		Assert.assertTrue(sut.getItems().isEmpty());
 
 		// Re-add items without duplicate ID exception.
