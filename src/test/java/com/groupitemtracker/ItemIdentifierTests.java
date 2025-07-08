@@ -88,7 +88,7 @@ public class ItemIdentifierTests
 		final String expectedName = "Climbing boots";
 		final var composition = mock(ItemComposition.class);
 		when(composition.getMembersName()).thenReturn(expectedName);
-		when(itemManager.getItemComposition(any())).thenReturn(composition);
+		when(itemManager.getItemComposition(anyInt())).thenReturn(composition);
 
 		Assert.assertEquals(expectedName, sut.getName(123));
 	}
