@@ -4,17 +4,19 @@ import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.testing.fieldbinder.Bind;
 import com.google.inject.testing.fieldbinder.BoundFieldModule;
-import com.groupitemtracker.helpers.FakeTrackedContainerBuilder;
+import com.groupitemtracker.helpers.TrackedContainerTestBuilder;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import net.runelite.api.Client;
 import net.runelite.api.gameval.ItemID;
+import net.runelite.client.eventbus.EventBus;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static org.mockito.ArgumentMatchers.anyInt;
 import org.mockito.Mock;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -25,8 +27,10 @@ public class ItemTrackerTests
 	private static final int VARIANT_ID = ItemID.BLOOD_MOON_CHESTPLATE_BROKEN;
 
 	@Bind
-	@Mock
-	private TrackedContainerReader containerReader;
+	private final Client client = mock(Client.class);
+
+	@Bind
+	private final EventBus eventBus = new EventBus();
 
 	@Mock
 	@Bind
@@ -35,11 +39,17 @@ public class ItemTrackerTests
 	@Inject
 	private ItemTracker sut;
 
+	private TrackedContainerTestBuilder testBuilder;
 
 	@Before
 	public void before()
 	{
 		Guice.createInjector(BoundFieldModule.of(this)).injectMembers(this);
+		eventBus.register(sut);
+
+		testBuilder = new TrackedContainerTestBuilder(sut);
+		when(client.getItemContainer(anyInt()))
+			.thenAnswer(invocation -> testBuilder.getItemContainer(invocation.getArgument(0)));
 
 		// By default, treat all item IDs as base IDs.
 		when(itemIdentifier.getBaseID(anyInt()))
@@ -49,171 +59,181 @@ public class ItemTrackerTests
 			.thenReturn(BASE_ID);
 	}
 
+	@Test
+	public void containsItem()
+	{
+		sut.addItem(1);
+		Assert.assertTrue(sut.containsItem(1));
+		Assert.assertFalse(sut.containsItem(2));
+	}
+
+	@Test
+	public void containsItem_falseForRemovedItems()
+	{
+		sut.addItem(1);
+		sut.removeItem(1);
+		Assert.assertFalse(sut.containsItem(1));
+	}
+
+	@Test
+	public void containsItem_trueForVariantItems()
+	{
+		sut.addItem(BASE_ID);
+		Assert.assertTrue(sut.containsItem(VARIANT_ID));
+	}
+
 	@Test(expected = IllegalArgumentException.class)
-	public void throwsWhenItemAlreadyTracked()
+	public void addItem_throwsWhenItemAlreadyTracked()
 	{
 		sut.addItem(1);
 		sut.addItem(1);
 	}
 
 	@Test(expected = IllegalArgumentException.class)
-	public void throwsWhenVariantAlreadyTracked()
+	public void addItem_throwsWhenVariantAlreadyTracked()
 	{
 		sut.addItem(BASE_ID);
 		sut.addItem(VARIANT_ID);
 	}
 
+	@Test
+	public void addItem_usesBaseItemID()
+	{
+		TrackedItem item = sut.addItem(VARIANT_ID);
+		Assert.assertEquals(BASE_ID, item.getItemID());
+	}
+
+	@Test
+	public void addItem_initializesContainerCounters()
+	{
+		var itemID = 1;
+		testBuilder.selectItemByID(itemID).inBank(1).inEquipment(10).inInventory(100);
+
+		TrackedItem item = sut.addItem(itemID);
+
+		testBuilder.assertStateOfTrackedItems(item);
+	}
+
 	@Test(expected = IllegalArgumentException.class)
-	public void throwsWhenRemovingUntrackedItem()
+	public void removeItem_throwsWhenRemovingUntrackedItem()
 	{
 		sut.addItem(1);
 		sut.removeItem(2);
 	}
 
 	@Test
-	public void getItems()
+	public void removeItem_onlyRemovesExpectedItem()
 	{
-		final TrackedItem firstItem = sut.addItem(1);
-		final TrackedItem secondItem = sut.addItem(2);
-		final TrackedItem thirdItem = sut.addItem(3);
-		sut.removeItem(secondItem.getItemID());
-
-		final Collection<TrackedItem> items = sut.getItems();
-
-		Assert.assertEquals(2, items.size());
-		Assert.assertTrue(items.contains(firstItem));
-		Assert.assertTrue(items.contains(thirdItem));
-	}
-
-	@Test
-	public void containsItem()
-	{
-		final TrackedItem firstItem = sut.addItem(1);
-		final TrackedItem secondItem = sut.addItem(BASE_ID);
-
-		// True for tracked items.
-		Assert.assertTrue(sut.containsItem(firstItem.getItemID()));
-		Assert.assertTrue(sut.containsItem(secondItem.getItemID()));
-
-		// True when variant of tracked item. 
-		Assert.assertTrue(sut.containsItem(VARIANT_ID));
-
-		// False for removed items.
-		sut.removeItem(firstItem.getItemID());
-		Assert.assertFalse(sut.containsItem(firstItem.getItemID()));
-
-		// False for untracked items.
-		Assert.assertFalse(sut.containsItem(99));
-	}
-
-	@Test
-	public void addItem()
-	{
-		final int firstID = 1;
-		final int secondID = 2;
-		final int placeholderID = 3;
-		when(itemIdentifier.isPlaceholder(placeholderID)).thenReturn(true);
-		new FakeTrackedContainerBuilder(containerReader)
-			.in(TrackedContainer.BANK).set(firstID, 1).set(secondID, 5).set(placeholderID, 10)
-			.in(TrackedContainer.INVENTORY).set(firstID, 10);
-
-		final TrackedItem firstItem = sut.addItem(firstID);
-		final TrackedItem secondItem = sut.addItem(secondID);
-		final TrackedItem placeholderItem = sut.addItem(placeholderID);
-		final TrackedItem variantItem = sut.addItem(VARIANT_ID);
-
-		// Track by base ID.
-		Assert.assertEquals(firstID, firstItem.getItemID());
-		Assert.assertEquals(BASE_ID, variantItem.getItemID());
-
-		// Initializes container counters.
-		assertTrackedItemState(firstItem, 1, 0, 10);
-		assertTrackedItemState(secondItem, 5, 0, 0);
-		assertTrackedItemState(variantItem, 0, 0, 0);
-		// Ignores placeholder items.
-		assertTrackedItemState(placeholderItem, 0, 0, 0);
-	}
-
-
-	@Test
-	public void removeItem()
-	{
-		final TrackedItem itemA = sut.addItem(1);
-		final TrackedItem itemB = sut.addItem(2);
-		sut.addItem(BASE_ID);
-
-		sut.removeItem(itemA.getItemID()); // remove by ID
-		sut.removeItem(VARIANT_ID); // remove by variant ID.
-		List<TrackedItem> items = new ArrayList<>(sut.getItems());
-
-		Assert.assertEquals(1, items.size());
-		Assert.assertTrue(items.contains(itemB));
-	}
-
-	@Test
-	public void clear()
-	{
-		sut.addItem(1);
-		sut.addItem(2);
-
-		// Clears items.
-		sut.clearProfile();
-		Assert.assertTrue(sut.getItems().isEmpty());
-
-		// Re-add items without duplicate ID exception.
-		sut.addItem(1);
-		sut.addItem(2);
-	}
-
-	@Test
-	public void refreshContainer()
-	{
-		final int firstID = 1;
-		final int secondID = 2;
 		TrackedItem firstItem = sut.addItem(1);
 		TrackedItem secondItem = sut.addItem(2);
 
-		final var builder = new FakeTrackedContainerBuilder(containerReader);
-		builder.in(TrackedContainer.BANK).set(firstID, 1).set(secondID, 10)
-			.in(TrackedContainer.EQUIPMENT).set(firstID, 4).set(secondID, 40)
-			.in(TrackedContainer.INVENTORY).set(firstID, 5).set(secondID, 50);
+		sut.removeItem(firstItem.getItemID());
 
-		// Only refresh supplied container.
-		sut.refreshContainer(TrackedContainer.BANK);
-		assertTrackedItemState(firstItem, 1, 0, 0);
-		assertTrackedItemState(secondItem, 10, 0, 0);
-
-		// Maintains correct value after multiple updates.
-		sut.refreshContainer(TrackedContainer.EQUIPMENT);
-		sut.refreshContainer(TrackedContainer.INVENTORY);
-		builder.in(TrackedContainer.BANK).set(firstID, 2).set(secondID, 20);
-		sut.refreshContainer(TrackedContainer.BANK);
-		assertTrackedItemState(firstItem, 2, 4, 5);
-		assertTrackedItemState(secondItem, 20, 40, 50);
-
-		// Do not modify counters for unavailable container.
-		builder.in(TrackedContainer.INVENTORY).set(firstID, 99);
-		builder.setContainerAvailability(TrackedContainer.INVENTORY, false);
-		sut.refreshContainer(TrackedContainer.INVENTORY);
-		assertTrackedItemState(firstItem, 2, 4, 5);
-
-		// Missing items set counter to zero.
-		builder.in(TrackedContainer.BANK).remove(secondID);
-		sut.refreshContainer(TrackedContainer.BANK);
-		assertTrackedItemState(secondItem, 0, 40, 50);
-
-		// Ignores placeholder items.
-		when(itemIdentifier.isPlaceholder(firstID)).thenReturn(true);
-		builder.in(TrackedContainer.BANK).set(firstID, 10);
-		sut.refreshContainer(TrackedContainer.BANK);
-		Assert.assertEquals(0, firstItem.getContainerCount(TrackedContainer.BANK));
+		List<TrackedItem> items = new ArrayList<>(sut.getItems());
+		Assert.assertEquals(1, items.size());
+		Assert.assertTrue(items.contains(secondItem));
 	}
 
-	private void assertTrackedItemState(TrackedItem item, int bank, int equipment, int inventory)
+	@Test
+	public void removeItem_byVariantID()
 	{
-		Assert.assertEquals(bank, item.getContainerCount(TrackedContainer.BANK));
-		Assert.assertEquals(equipment, item.getContainerCount(TrackedContainer.EQUIPMENT));
-		Assert.assertEquals(inventory, item.getContainerCount(TrackedContainer.INVENTORY));
-		Assert.assertEquals(bank + equipment + inventory, item.getTotalCount());
+		sut.addItem(BASE_ID);
+
+		sut.removeItem(VARIANT_ID);
+
+		Assert.assertTrue(sut.getItems().isEmpty());
+	}
+
+	@Test
+	public void reset_clearsTrackedItems()
+	{
+		sut.addItem(1);
+
+		sut.reset();
+
+		Assert.assertTrue(sut.getItems().isEmpty());
+		Assert.assertFalse(sut.containsItem(1));
+	}
+
+	@Test
+	public void reset_canReAddItems()
+	{
+		sut.addItem(1);
+		sut.reset();
+
+		// Doesn't throw item already exists exception.
+		sut.addItem(1);
+	}
+
+	@Test
+	public void onItemContainerChanged_onlyUpdatesTargetContainer()
+	{
+		TrackedItem item = sut.addItem(1);
+		testBuilder.selectItem(item).inBank(1).inEquipment(1).inInventory(1);
+
+		testBuilder.invokeContainerChangedEvent(TrackedContainer.BANK);
+
+		Assert.assertEquals(1, item.getTotalCount());
+		Assert.assertEquals(1, item.getContainerCount(TrackedContainer.BANK));
+		Assert.assertEquals(0, item.getContainerCount(TrackedContainer.EQUIPMENT));
+		Assert.assertEquals(0, item.getContainerCount(TrackedContainer.INVENTORY));
+	}
+
+	@Test
+	public void onItemContainerChanged_resetsCounterForMissingItems()
+	{
+		TrackedItem item = sut.addItem(1);
+		testBuilder.selectItem(item).inBank(10).invokeContainerChangedEvent(TrackedContainer.BANK);
+
+		testBuilder.removeItem(TrackedContainer.BANK).invokeContainerChangedEvent(TrackedContainer.BANK);
+
+		Assert.assertEquals(0, item.getContainerCount(TrackedContainer.BANK));
+	}
+
+	@Test
+	public void onItemContainerChanged_ignoresPlaceholderItems()
+	{
+		TrackedItem item = sut.addItem(1);
+		when(itemIdentifier.isPlaceholder(item.getItemID())).thenReturn(true);
+
+		testBuilder.selectItem(item).inBank(10).invokeContainerChangedEvent(TrackedContainer.BANK);
+
+		Assert.assertEquals(0, item.getContainerCount(TrackedContainer.BANK));
+	}
+
+	@Test
+	public void onItemContainerChanged_usesSumOfVariants()
+	{
+		TrackedItem item = sut.addItem(BASE_ID);
+
+		testBuilder.selectItemByID(BASE_ID).inBank(1)
+			.selectItemByID(VARIANT_ID).inBank(2)
+			.invokeContainerChangedEvent(TrackedContainer.BANK);
+
+		Assert.assertEquals(3, item.getContainerCount(TrackedContainer.BANK));
+	}
+
+	@Test
+	public void onItemContainerChanged_maintainsCorrectStateAcrossMultipleUpdates()
+	{
+		TrackedItem firstItem = sut.addItem(1);
+		TrackedItem secondItem = sut.addItem(2);
+
+		// Assert that items have individual quantities.
+		testBuilder.selectItem(firstItem).inBank(1).inEquipment(10).inInventory(100)
+			.selectItem(secondItem).inBank(2).inEquipment(20).inInventory(200)
+			.invokeContainerChangedEventAllContainers()
+			.assertStateOfTrackedItems(firstItem, secondItem);
+
+		// Assert that a change to one item doesn't  affect another.
+		testBuilder.selectItem(firstItem).inEquipment(100)
+			.invokeContainerChangedEvent(TrackedContainer.EQUIPMENT)
+			.assertStateOfTrackedItems(firstItem, secondItem);
+
+		// Assert that adding an item doesn't affect existing item states.
+		TrackedItem thirdItem = sut.addItem(3);
+		testBuilder.selectItem(thirdItem).inBank(10).inEquipment(5)
+			.invokeContainerChangedEventAllContainers()
+			.assertStateOfTrackedItems(firstItem, secondItem, thirdItem);
 	}
 }

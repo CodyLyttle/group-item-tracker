@@ -1,6 +1,5 @@
 package com.groupitemtracker;
 
-import java.util.Optional;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.gameval.InventoryID;
 
@@ -19,18 +18,16 @@ public enum TrackedContainer
 		this.description = description;
 	}
 
-	public static Optional<TrackedContainer> fromItemContainer(ItemContainer container)
+	public static TrackedContainer fromItemContainerID(int itemContainerID)
 	{
-		int containerID = container.getId();
-
 		for (var value : TrackedContainer.values())
 		{
-			if (value.itemContainerID == containerID)
+			if (value.itemContainerID == itemContainerID)
 			{
-				return Optional.of(value);
+				return value;
 			}
 		}
 
-		return Optional.empty();
+		return null;
 	}
 }

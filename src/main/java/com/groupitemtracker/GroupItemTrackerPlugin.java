@@ -135,7 +135,7 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	private void unloadProfile()
 	{
-		itemTracker.clearProfile();
+		itemTracker.reset();
 		sidebarPanel.logout();
 		isProfileLoaded = false;
 	}
