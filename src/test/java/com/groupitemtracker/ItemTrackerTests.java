@@ -4,22 +4,34 @@ import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.testing.fieldbinder.Bind;
 import com.google.inject.testing.fieldbinder.BoundFieldModule;
+import com.groupitemtracker.events.ItemAdded;
+import com.groupitemtracker.events.ItemRemoved;
+import com.groupitemtracker.events.ItemUpdated;
 import com.groupitemtracker.helpers.TrackedContainerTestBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import net.runelite.api.Client;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.client.eventbus.EventBus;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import static org.mockito.ArgumentMatchers.anyInt;
 import org.mockito.Mock;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.mockito.Mockito;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import org.mockito.junit.MockitoJUnitRunner;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.when;
 
+// ItemTracker contains our core logic and is the most likely cause of regressions.
+// Because of this, I've opted for an in-depth unit test suite.
 @RunWith(MockitoJUnitRunner.class)
 public class ItemTrackerTests
 {
@@ -30,6 +42,7 @@ public class ItemTrackerTests
 	private final Client client = mock(Client.class);
 
 	@Bind
+	@Mock
 	private final EventBus eventBus = new EventBus();
 
 	@Mock
@@ -45,7 +58,6 @@ public class ItemTrackerTests
 	public void before()
 	{
 		Guice.createInjector(BoundFieldModule.of(this)).injectMembers(this);
-		eventBus.register(sut);
 
 		testBuilder = new TrackedContainerTestBuilder(sut);
 		when(client.getItemContainer(anyInt()))
@@ -114,6 +126,17 @@ public class ItemTrackerTests
 		testBuilder.assertStateOfTrackedItems(item);
 	}
 
+	@Test
+	public void addItem_sendsItemAddedEvent()
+	{
+		var itemID = 1;
+
+		sut.addItem(itemID);
+
+		Mockito.verify(eventBus, times(1)).post(
+			argThat((ItemAdded event) -> event.getItem().getItemID() == itemID));
+	}
+
 	@Test(expected = IllegalArgumentException.class)
 	public void removeItem_throwsWhenRemovingUntrackedItem()
 	{
@@ -145,6 +168,19 @@ public class ItemTrackerTests
 	}
 
 	@Test
+	public void removeItem_sendsItemRemovedEvent()
+	{
+		var itemID = 1;
+		sut.addItem(itemID);
+
+		sut.removeItem(itemID);
+
+		Mockito.verify(eventBus, times(1)).post(
+			argThat(event -> event instanceof ItemRemoved &&
+				((ItemRemoved) event).getItem().getItemID() == itemID));
+	}
+
+	@Test
 	public void reset_clearsTrackedItems()
 	{
 		sut.addItem(1);
@@ -159,6 +195,7 @@ public class ItemTrackerTests
 	public void reset_canReAddItems()
 	{
 		sut.addItem(1);
+
 		sut.reset();
 
 		// Doesn't throw item already exists exception.
@@ -235,5 +272,63 @@ public class ItemTrackerTests
 		testBuilder.selectItem(thirdItem).inBank(10).inEquipment(5)
 			.invokeContainerChangedEventAllContainers()
 			.assertStateOfTrackedItems(firstItem, secondItem, thirdItem);
+	}
+
+	@Test
+	public void onGameTick_sendsEventForEachUpdatedItem()
+	{
+		TrackedItem firstItem = sut.addItem(1);
+		TrackedItem secondItem = sut.addItem(2);
+		TrackedItem thirdItem = sut.addItem(3);
+		testBuilder.selectItem(firstItem).inBank(1).invokeContainerChangedEvent(TrackedContainer.BANK)
+			.selectItem(secondItem).inEquipment(1).invokeContainerChangedEvent(TrackedContainer.EQUIPMENT)
+			.selectItem(thirdItem).inInventory(1).invokeContainerChangedEvent(TrackedContainer.INVENTORY)
+			// Revert changes before game tick to prevent an ItemUpdated event for thirdItem.
+			.removeItem(TrackedContainer.INVENTORY).invokeContainerChangedEvent(TrackedContainer.INVENTORY);
+		reset(eventBus);
+
+		sut.onGameTick(new GameTick());
+
+		verify(eventBus, times(1)).post(argThat(event ->
+			event instanceof ItemUpdated && ((ItemUpdated) event).getItem() == firstItem));
+		verify(eventBus, times(1)).post(argThat(event ->
+			event instanceof ItemUpdated && ((ItemUpdated) event).getItem() == secondItem));
+		verifyNoMoreInteractions(eventBus);
+	}
+
+	@Test
+	public void loadProfile_clearsExistingState()
+	{
+		var profileManager = mock(ProfileManager.class);
+		when(profileManager.readTrackedItemIDs()).thenReturn(new int[]{});
+		// Add and update an item, but leave the update pending by not calling onGameTick.
+		TrackedItem item = sut.addItem(1);
+		testBuilder.selectItem(item).inBank(1).invokeContainerChangedEvent(TrackedContainer.BANK);
+		reset(eventBus);
+
+		// Clears items.
+		sut.loadProfile(profileManager);
+		Assert.assertEquals(0, sut.getItems().size());
+		Assert.assertFalse(sut.containsItem(item.getItemID()));
+
+		// Clears pending state updates.
+		sut.onGameTick(new GameTick());
+		verifyNoMoreInteractions(eventBus);
+	}
+
+	@Test
+	public void loadProfile_initializesContainerCounters()
+	{
+		final int firstID = 1;
+		final int secondID = 2;
+		var profileManager = mock(ProfileManager.class);
+		when(profileManager.readTrackedItemIDs()).thenReturn(new int[]{firstID, secondID});
+		testBuilder.selectItemByID(firstID).inBank(1).inEquipment(2).inInventory(3)
+			.selectItemByID(secondID).inEquipment(2)
+			.invokeContainerChangedEventAllContainers();
+
+		sut.loadProfile(profileManager);
+
+		testBuilder.assertStateOfTrackedItems(sut.getItems().toArray(new TrackedItem[]{}));
 	}
 }
