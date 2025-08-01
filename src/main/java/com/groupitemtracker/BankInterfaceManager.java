@@ -1,5 +1,6 @@
 package com.groupitemtracker;
 
+import com.groupitemtracker.events.ItemRemoved;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -18,6 +19,7 @@ import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.widgets.WidgetItem;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
@@ -94,6 +96,16 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	}
 
 	@Subscribe
+	private void onItemRemoved(ItemRemoved event)
+	{
+		ItemContainer bankContainer = getBankContainerOrNull();
+		if (bankContainer != null)
+		{
+			refreshItemCache(bankContainer);
+		}
+	}
+
+	@Subscribe
 	private void onMenuEntryAdded(MenuEntryAdded event)
 	{
 		int interfaceID = event.getActionParam1();
@@ -161,6 +173,7 @@ public class BankInterfaceManager extends WidgetItemOverlay
 				break;
 		}
 	}
+
 	private ItemContainer getBankContainerOrNull()
 	{
 		ItemContainer bankContainer = client.getItemContainer(InventoryID.BANK);
