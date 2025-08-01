@@ -28,6 +28,7 @@ public class ItemTracker
 	private final Map<Integer, TrackedItem> itemLookup = new HashMap<>();
 	private final Map<TrackedItem, TrackedItemSnapshot> itemSnapshotLookup = new HashMap<>();
 	private boolean bankClosedLastTick = false;
+	private boolean sharedBankClosedLastTick = false;
 	private boolean hasPendingChanges = false;
 
 	@Inject
@@ -56,8 +57,8 @@ public class ItemTracker
 
 			// Handle edge-case where transferring an item and closing the bank on the same tick caused counter desync.
 			// e.g. Deposited item is decremented from inventory but not incremented in bank.
-			// TODO: Handle 1-tick closing of shared bank.
-			if (bankClosedLastTick)
+			// Note: The adjustment isn't made if the shared bank was closed, as this results in further desync.
+			if (bankClosedLastTick && !sharedBankClosedLastTick)
 			{
 				final int bankCounter = item.getContainerCount(TrackedContainer.BANK);
 				final int equipmentCounter = item.getContainerCount(TrackedContainer.EQUIPMENT);
@@ -74,18 +75,21 @@ public class ItemTracker
 		}
 
 		bankClosedLastTick = false;
+		sharedBankClosedLastTick = false;
 		hasPendingChanges = false;
 	}
 
 	@Subscribe
 	public void onWidgetClosed(WidgetClosed event)
 	{
-		if (event.getGroupId() != InterfaceID.BANKMAIN)
+		if (event.getGroupId() == InterfaceID.BANKMAIN)
 		{
-			return;
+			bankClosedLastTick = true;
 		}
-
-		bankClosedLastTick = true;
+		else if (event.getGroupId() == InterfaceID.SHARED_BANK)
+		{
+			sharedBankClosedLastTick = true;
+		}
 	}
 
 	public Collection<TrackedItem> getItems()
