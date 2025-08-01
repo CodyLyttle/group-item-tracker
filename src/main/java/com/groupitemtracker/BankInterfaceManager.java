@@ -19,7 +19,6 @@ import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.widgets.WidgetItem;
-import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
@@ -57,7 +56,8 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
-		if (useItemHighlights && itemCache.contains(itemId))
+		// Only highlight cached, non-placeholder items.
+		if (useItemHighlights && itemCache.contains(itemId) && widgetItem.getQuantity() > 0)
 		{
 			final Rectangle bounds = widgetItem.getCanvasBounds();
 			final BufferedImage outline = itemManager.getItemOutline(itemId, widgetItem.getQuantity(), highlightColor);
