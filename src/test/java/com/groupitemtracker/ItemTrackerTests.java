@@ -297,6 +297,21 @@ public class ItemTrackerTests
 	}
 
 	@Test
+	public void onGameTick_sendsEventWhenItemRemovedFromContainer()
+	{
+		TrackedItem item = sut.addItem(1);
+		testBuilder.selectItem(item).inBank(1).invokeContainerChangedEvent(TrackedContainer.BANK);
+		sut.onGameTick(new GameTick());
+		reset(eventBus);
+		testBuilder.removeItem(TrackedContainer.BANK).invokeContainerChangedEvent(TrackedContainer.BANK);
+
+		sut.onGameTick(new GameTick());
+
+		verify(eventBus, times(1)).post(argThat(event ->
+			event instanceof ItemUpdated && ((ItemUpdated) event).getItem() == item));
+	}
+
+	@Test
 	public void loadProfile_clearsExistingState()
 	{
 		var profileManager = mock(ProfileManager.class);

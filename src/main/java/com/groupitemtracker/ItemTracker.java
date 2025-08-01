@@ -6,9 +6,7 @@ import com.groupitemtracker.events.ItemUpdated;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
@@ -27,7 +25,7 @@ public class ItemTracker
 	private final ItemIdentifier itemIdentifier;
 	private final Map<Integer, TrackedItem> itemLookup = new HashMap<>();
 	private final Map<TrackedItem, TrackedItemSnapshot> itemSnapshotLookup = new HashMap<>();
-	private final Set<TrackedItem> pendingItemUpdates = new HashSet<>();
+	private boolean hasPendingChanges = false;
 
 	@Inject
 	public ItemTracker(Client client, EventBus eventBus, ItemIdentifier itemIdentifier)
@@ -40,19 +38,20 @@ public class ItemTracker
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
-		for (TrackedItem item : pendingItemUpdates)
+		if (!hasPendingChanges)
 		{
-			TrackedItemSnapshot oldSnapshot = itemSnapshotLookup.get(item);
-			if (item.matchesSnapshot(oldSnapshot))
-			{
-				continue;
-			}
-
-			itemSnapshotLookup.put(item, item.createSnapshot());
-			eventBus.post(new ItemUpdated(item));
+			return;
 		}
 
-		pendingItemUpdates.clear();
+		hasPendingChanges = false;
+		for (TrackedItem item : itemLookup.values())
+		{
+			if (!item.matchesSnapshot(itemSnapshotLookup.get(item)))
+			{
+				itemSnapshotLookup.put(item, item.createSnapshot());
+				eventBus.post(new ItemUpdated(item));
+			}
+		}
 	}
 
 	public Collection<TrackedItem> getItems()
@@ -70,7 +69,6 @@ public class ItemTracker
 	{
 		itemLookup.clear();
 		itemSnapshotLookup.clear();
-		pendingItemUpdates.clear();
 	}
 
 	public void loadProfile(ProfileManager profileManager)
@@ -136,6 +134,7 @@ public class ItemTracker
 		if (trackedContainer != null)
 		{
 			refreshContainer(trackedContainer, event.getItemContainer());
+			hasPendingChanges = true;
 		}
 	}
 
@@ -162,7 +161,6 @@ public class ItemTracker
 			if (trackedItem != null)
 			{
 				trackedItem.increaseContainerCounter(trackedContainer, item.getQuantity());
-				pendingItemUpdates.add(trackedItem);
 			}
 		}
 	}
