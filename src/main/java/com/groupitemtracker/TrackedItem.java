@@ -40,6 +40,14 @@ public class TrackedItem
 		final int existingValue = containerCounters.get(container);
 		containerCounters.put(container, existingValue + value);
 	}
+	
+	public void setContainerCounter(TrackedContainer container,  int value)
+	{
+		assert value >= 0;
+		assert containerCounters.containsKey(container);
+		
+		containerCounters.put(container, value);
+	}
 
 	public int getContainerCount(TrackedContainer container)
 	{

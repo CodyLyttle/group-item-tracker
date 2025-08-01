@@ -14,6 +14,8 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.WidgetClosed;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 
@@ -25,6 +27,7 @@ public class ItemTracker
 	private final ItemIdentifier itemIdentifier;
 	private final Map<Integer, TrackedItem> itemLookup = new HashMap<>();
 	private final Map<TrackedItem, TrackedItemSnapshot> itemSnapshotLookup = new HashMap<>();
+	private boolean bankClosedLastTick = false;
 	private boolean hasPendingChanges = false;
 
 	@Inject
@@ -43,15 +46,46 @@ public class ItemTracker
 			return;
 		}
 
-		hasPendingChanges = false;
 		for (TrackedItem item : itemLookup.values())
 		{
-			if (!item.matchesSnapshot(itemSnapshotLookup.get(item)))
+			TrackedItemSnapshot snapshot = itemSnapshotLookup.get(item);
+			if (item.matchesSnapshot(snapshot))
 			{
-				itemSnapshotLookup.put(item, item.createSnapshot());
-				eventBus.post(new ItemUpdated(item));
+				continue;
 			}
+
+			// Handle edge-case where transferring an item and closing the bank on the same tick caused counter desync.
+			// e.g. Deposited item is decremented from inventory but not incremented in bank.
+			// TODO: Handle 1-tick closing of shared bank.
+			if (bankClosedLastTick)
+			{
+				final int bankCounter = item.getContainerCount(TrackedContainer.BANK);
+				final int equipmentCounter = item.getContainerCount(TrackedContainer.EQUIPMENT);
+				final int inventoryCounter = item.getContainerCount(TrackedContainer.INVENTORY);
+				final int inventoryCounterSnapshot = snapshot.getContainerCount(TrackedContainer.INVENTORY);
+				final int equipmentCounterSnapshot = snapshot.getContainerCount(TrackedContainer.EQUIPMENT);
+
+				final int bankDelta = equipmentCounterSnapshot - equipmentCounter + inventoryCounterSnapshot - inventoryCounter;
+				item.setContainerCounter(TrackedContainer.BANK, bankCounter + bankDelta);
+			}
+
+			itemSnapshotLookup.put(item, item.createSnapshot());
+			eventBus.post(new ItemUpdated(item));
 		}
+
+		bankClosedLastTick = false;
+		hasPendingChanges = false;
+	}
+
+	@Subscribe
+	public void onWidgetClosed(WidgetClosed event)
+	{
+		if (event.getGroupId() != InterfaceID.BANKMAIN)
+		{
+			return;
+		}
+
+		bankClosedLastTick = true;
 	}
 
 	public Collection<TrackedItem> getItems()

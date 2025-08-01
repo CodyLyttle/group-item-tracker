@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import net.runelite.api.Client;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.WidgetClosed;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.client.eventbus.EventBus;
 import org.junit.Assert;
@@ -345,5 +347,96 @@ public class ItemTrackerTests
 		sut.loadProfile(profileManager);
 
 		testBuilder.assertStateOfTrackedItems(sut.getItems().toArray(new TrackedItem[]{}));
+	}
+
+	// EDGE-CASES.
+	@Test
+	public void closeBankWithItemDepositPending()
+	{
+		// Begin with items in inventory.
+		testBuilder.selectItemByID(1).inInventory(4).invokeContainerChangedEvent(TrackedContainer.INVENTORY);
+		TrackedItem item = sut.addItem(1);
+		reset(eventBus);
+
+		// Transfer from inventory to bank & close bank same tick.
+		sut.onWidgetClosed(new WidgetClosed(InterfaceID.BANKMAIN, 0, true));
+		testBuilder.inInventory(1).invokeContainerChangedEvent(TrackedContainer.INVENTORY);
+		sut.onGameTick(new GameTick());
+
+		Assert.assertEquals(4, item.getTotalCount());
+		Assert.assertEquals(3, item.getContainerCount(TrackedContainer.BANK));
+		Assert.assertEquals(1, item.getContainerCount(TrackedContainer.INVENTORY));
+		verifyItemUpdated(item, 1);
+	}
+
+	@Test
+	public void closeBankWithItemWithdrawPending()
+	{
+		// Begin with items in bank.
+		testBuilder.selectItemByID(1).inBank(4).invokeContainerChangedEvent(TrackedContainer.BANK);
+		TrackedItem item = sut.addItem(1);
+		reset(eventBus);
+
+		// Transfer from bank to inventory & close bank same tick.
+		sut.onWidgetClosed(new WidgetClosed(InterfaceID.BANKMAIN, 0, true));
+		testBuilder.inInventory(3).invokeContainerChangedEvent(TrackedContainer.INVENTORY);
+		sut.onGameTick(new GameTick());
+
+		Assert.assertEquals(4, item.getTotalCount());
+		Assert.assertEquals(1, item.getContainerCount(TrackedContainer.BANK));
+		Assert.assertEquals(3, item.getContainerCount(TrackedContainer.INVENTORY));
+		verifyItemUpdated(item, 1);
+	}
+
+	@Test
+	public void closeBankWithItemEquipPending()
+	{
+		// Begin with items in bank and inventory
+		testBuilder.selectItemByID(1).inBank(2).inInventory(2).invokeContainerChangedEventAllContainers();
+		TrackedItem item = sut.addItem(1);
+		reset(eventBus);
+
+		// Equip from inventory & close bank same tick.
+		sut.onWidgetClosed(new WidgetClosed(InterfaceID.BANKMAIN, 0, true));
+		testBuilder.inEquipment(1).inInventory(1).invokeContainerChangedEventAllContainers();
+		sut.onGameTick(new GameTick());
+
+		Assert.assertEquals(4, item.getTotalCount());
+		Assert.assertEquals(2, item.getContainerCount(TrackedContainer.BANK));
+		Assert.assertEquals(1, item.getContainerCount(TrackedContainer.EQUIPMENT));
+		Assert.assertEquals(1, item.getContainerCount(TrackedContainer.INVENTORY));
+		verifyItemUpdated(item, 1);
+	}
+
+	@Test
+	public void closeBankWithDepositEquipmentPending()
+	{
+		// Begin with items equipped. 
+		testBuilder.selectItemByID(1).inEquipment(1)
+			.selectItemByID(2).inEquipment(1)
+			.invokeContainerChangedEventAllContainers();
+		TrackedItem firstItem = sut.addItem(1);
+		TrackedItem secondItem = sut.addItem(2);
+		reset(eventBus);
+
+		// Deposit equipment & close bank same tick.
+		sut.onWidgetClosed(new WidgetClosed(InterfaceID.BANKMAIN, 0, true));
+		testBuilder.selectItem(firstItem).removeItem(TrackedContainer.EQUIPMENT)
+			.selectItem(secondItem).removeItem(TrackedContainer.EQUIPMENT)
+			.invokeContainerChangedEvent(TrackedContainer.EQUIPMENT);
+		sut.onGameTick(new GameTick());
+
+		Assert.assertEquals(1, firstItem.getTotalCount());
+		Assert.assertEquals(1, secondItem.getTotalCount());
+		Assert.assertEquals(1, firstItem.getContainerCount(TrackedContainer.BANK));
+		Assert.assertEquals(1, secondItem.getContainerCount(TrackedContainer.BANK));
+		verifyItemUpdated(firstItem, 1);
+		verifyItemUpdated(secondItem, 1);
+	}	
+
+	private void verifyItemUpdated(TrackedItem expectedItem, int expectedTimes)
+	{
+		verify(eventBus, times(expectedTimes)).post(argThat(event ->
+			event instanceof ItemUpdated && ((ItemUpdated) event).getItem() == expectedItem));
 	}
 }
