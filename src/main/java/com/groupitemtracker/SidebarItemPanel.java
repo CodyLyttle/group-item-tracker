@@ -84,10 +84,8 @@ public class SidebarItemPanel extends PluginPanel
 
 	public void refresh()
 	{
-		final String locations = buildLocationsString();
-		final Color nameColor = locations.isEmpty() ? TEXT_COLOR_SECONDARY : TEXT_COLOR_PRIMARY;
-		locationsLabel.setText(locations);
-		nameLabel.setForeground(nameColor);
+		nameLabel.setForeground(trackedItem.getTotalCount() > 0 ? TEXT_COLOR_PRIMARY : TEXT_COLOR_SECONDARY);
+		locationsLabel.setText(buildLocationsString());
 		repaint();
 	}
 

@@ -4,9 +4,7 @@ import com.groupitemtracker.events.ItemAdded;
 import com.groupitemtracker.events.ItemRemoved;
 import com.groupitemtracker.events.ItemUpdated;
 import java.awt.BorderLayout;
-import java.awt.GridLayout;
 import java.util.Comparator;
-import java.util.TreeMap;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
@@ -25,12 +23,13 @@ public class SidebarPanel extends PluginPanel
 	private static final String LOGIN_HINT_LABEL = "Login to view your tracked items";
 	private static final String TUTORIAL_HINT_LABEL = "Right-click bank item to track";
 
+	private final Comparator<TrackedItem> itemComparer = Comparator.comparing(TrackedItem::getItemName);
+	private final SortedItemsContainer<TrackedItem, SidebarItemPanel> claimedItemsContainer = new SortedItemsContainer<>(itemComparer);
+	private final SortedItemsContainer<TrackedItem, SidebarItemPanel> unclaimedItemsContainer = new SortedItemsContainer<>(itemComparer);
 	private final ClientThread clientThread;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
-	private final JPanel itemContainer;
 	private final JLabel hintLabel;
-	private final TreeMap<TrackedItem, SidebarItemPanel> itemPanelLookup = new TreeMap<>(Comparator.comparing(TrackedItem::getItemName));
 
 	public SidebarPanel(ClientThread clientThread, ItemManager itemManager, ItemTracker itemTracker)
 	{
@@ -50,52 +49,42 @@ public class SidebarPanel extends PluginPanel
 		headerPanel.add(header, BorderLayout.NORTH);
 		headerPanel.add(hintLabel, BorderLayout.SOUTH);
 
-		itemContainer = new JPanel(new GridLayout(0, 1, 0, 4));
-
 		setBorder(new EmptyBorder(6, 6, 6, 6));
-		setLayout(new DynamicGridLayout(2, 1, 0, 4));
+		setLayout(new DynamicGridLayout(3, 1, 0, 4));
 		add(headerPanel, BorderLayout.NORTH);
-		add(itemContainer, BorderLayout.CENTER);
+		add(claimedItemsContainer, BorderLayout.CENTER);
+		add(unclaimedItemsContainer, BorderLayout.CENTER);
 	}
 
 	public void login()
 	{
 		hintLabel.setText(TUTORIAL_HINT_LABEL);
+
 		for (TrackedItem item : itemTracker.getItems())
 		{
-			addItem(item);
+			final SidebarItemPanel itemPanel = createItemPanel(item);
+			final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
+			itemContainer.addItem(item, itemPanel);
 		}
 
-		itemContainer.revalidate();
-		itemContainer.repaint();
+		refreshItemContainers();
 	}
 
 	public void logout()
 	{
 		hintLabel.setText(LOGIN_HINT_LABEL);
-		itemContainer.removeAll();
-		itemPanelLookup.clear();
-	}
-
-	private void addItem(TrackedItem item)
-	{
-		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
-		final var itemPanel = new SidebarItemPanel(clientThread, itemTracker, item, image);
-		itemPanelLookup.put(item, itemPanel);
-		final int sortedIndex = itemPanelLookup.headMap(item).size();
-		itemContainer.add(itemPanel, sortedIndex);
+		claimedItemsContainer.clearItems();
+		unclaimedItemsContainer.clearItems();
+		refreshItemContainers();
 	}
 
 	@Subscribe
 	public void onItemAdded(ItemAdded event)
 	{
-		TrackedItem item = event.getItem();
-		if (itemPanelLookup.containsKey(item))
-		{
-			throw new IllegalArgumentException("Panel already exists for item: " + item.getItemName());
-		}
-
-		addItem(item);
+		final TrackedItem item = event.getItem();
+		final SidebarItemPanel itemPanel = createItemPanel(item);
+		final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
+		itemContainer.addItem(item, itemPanel);
 		itemContainer.revalidate();
 		itemContainer.repaint();
 	}
@@ -103,28 +92,62 @@ public class SidebarPanel extends PluginPanel
 	@Subscribe
 	private void onItemRemoved(ItemRemoved event)
 	{
-		TrackedItem item = event.getItem();
-		final SidebarItemPanel removed = itemPanelLookup.remove(item);
-		if (removed == null)
-		{
-			throw new IllegalArgumentException("Panel doesn't exist for item: " + item.getItemName());
-		}
-
-		itemContainer.remove(removed);
+		final TrackedItem item = event.getItem();
+		final var itemContainer = getItemContainerOrThrow(item);
+		itemContainer.removeItem(item);
 		itemContainer.revalidate();
 		itemContainer.repaint();
 	}
 
+	// TODO: Batch refresh containers.
 	@Subscribe
 	private void onItemUpdated(ItemUpdated event)
 	{
-		TrackedItem item = event.getItem();
-		final SidebarItemPanel itemPanel = itemPanelLookup.get(item);
-		if (itemPanel == null)
+		final TrackedItem item = event.getItem();
+		final var itemContainer = getItemContainerOrThrow(item);
+		SidebarItemPanel itemPanel = itemContainer.getItemPanel(item);
+		itemPanel.refresh();
+
+		if (itemContainer == claimedItemsContainer && item.getTotalCount() == 0)
 		{
-			throw new IllegalArgumentException("Panel doesn't exist for item: " + item.getItemName());
+			claimedItemsContainer.removeItem(item);
+			unclaimedItemsContainer.addItem(item, itemPanel);
+			refreshItemContainers();
+		}
+		else if (itemContainer == unclaimedItemsContainer && item.getTotalCount() > 0)
+		{
+			unclaimedItemsContainer.removeItem(item);
+			claimedItemsContainer.addItem(item, itemPanel);
+			refreshItemContainers();
+		}
+	}
+
+	private SidebarItemPanel createItemPanel(TrackedItem item)
+	{
+		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
+		return new SidebarItemPanel(clientThread, itemTracker, item, image);
+	}
+
+	private SortedItemsContainer<TrackedItem, SidebarItemPanel> getItemContainerOrThrow(TrackedItem item)
+	{
+		if (claimedItemsContainer.containsKey(item))
+		{
+			return claimedItemsContainer;
 		}
 
-		itemPanel.refresh();
+		if (unclaimedItemsContainer.containsKey(item))
+		{
+			return unclaimedItemsContainer;
+		}
+
+		throw new IllegalArgumentException("An item panel doesn't exist for item: " + item.toString());
+	}
+
+	private void refreshItemContainers()
+	{
+		claimedItemsContainer.revalidate();
+		claimedItemsContainer.repaint();
+		unclaimedItemsContainer.revalidate();
+		unclaimedItemsContainer.repaint();
 	}
 }
