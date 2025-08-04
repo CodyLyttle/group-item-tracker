@@ -1,6 +1,5 @@
 package com.groupitemtracker;
 
-import net.runelite.api.ItemContainer;
 import net.runelite.api.gameval.InventoryID;
 
 public enum TrackedContainer

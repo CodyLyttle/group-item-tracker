@@ -1,5 +1,7 @@
-package com.groupitemtracker;
+package com.groupitemtracker.panels;
 
+import com.groupitemtracker.ItemTracker;
+import com.groupitemtracker.TrackedItem;
 import com.groupitemtracker.events.ItemAdded;
 import com.groupitemtracker.events.ItemRemoved;
 import com.groupitemtracker.events.ItemUpdated;
@@ -24,8 +26,8 @@ public class SidebarPanel extends PluginPanel
 	private static final String TUTORIAL_HINT_LABEL = "Right-click bank item to track";
 
 	private final Comparator<TrackedItem> itemComparer = Comparator.comparing(TrackedItem::getItemName);
-	private final SortedItemsContainer<TrackedItem, SidebarItemPanel> claimedItemsContainer = new SortedItemsContainer<>(itemComparer);
-	private final SortedItemsContainer<TrackedItem, SidebarItemPanel> unclaimedItemsContainer = new SortedItemsContainer<>(itemComparer);
+	private final SortedItemsPanel<TrackedItem, TrackedItemPanel> claimedItemsContainer = new SortedItemsPanel<>(itemComparer);
+	private final SortedItemsPanel<TrackedItem, TrackedItemPanel> unclaimedItemsContainer = new SortedItemsPanel<>(itemComparer);
 	private final ClientThread clientThread;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
@@ -62,7 +64,7 @@ public class SidebarPanel extends PluginPanel
 
 		for (TrackedItem item : itemTracker.getItems())
 		{
-			final SidebarItemPanel itemPanel = createItemPanel(item);
+			final TrackedItemPanel itemPanel = createItemPanel(item);
 			final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
 			itemContainer.addItem(item, itemPanel);
 		}
@@ -82,7 +84,7 @@ public class SidebarPanel extends PluginPanel
 	public void onItemAdded(ItemAdded event)
 	{
 		final TrackedItem item = event.getItem();
-		final SidebarItemPanel itemPanel = createItemPanel(item);
+		final TrackedItemPanel itemPanel = createItemPanel(item);
 		final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
 		itemContainer.addItem(item, itemPanel);
 		itemContainer.revalidate();
@@ -105,7 +107,7 @@ public class SidebarPanel extends PluginPanel
 	{
 		final TrackedItem item = event.getItem();
 		final var itemContainer = getItemContainerOrThrow(item);
-		SidebarItemPanel itemPanel = itemContainer.getItemPanel(item);
+		final TrackedItemPanel itemPanel = itemContainer.getItemPanel(item);
 		itemPanel.refresh();
 
 		if (itemContainer == claimedItemsContainer && item.getTotalCount() == 0)
@@ -122,13 +124,13 @@ public class SidebarPanel extends PluginPanel
 		}
 	}
 
-	private SidebarItemPanel createItemPanel(TrackedItem item)
+	private TrackedItemPanel createItemPanel(TrackedItem item)
 	{
 		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
-		return new SidebarItemPanel(clientThread, itemTracker, item, image);
+		return new TrackedItemPanel(clientThread, itemTracker, item, image);
 	}
 
-	private SortedItemsContainer<TrackedItem, SidebarItemPanel> getItemContainerOrThrow(TrackedItem item)
+	private SortedItemsPanel<TrackedItem, TrackedItemPanel> getItemContainerOrThrow(TrackedItem item)
 	{
 		if (claimedItemsContainer.containsKey(item))
 		{

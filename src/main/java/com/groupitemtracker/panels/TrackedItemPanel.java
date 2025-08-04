@@ -1,5 +1,8 @@
-package com.groupitemtracker;
+package com.groupitemtracker.panels;
 
+import com.groupitemtracker.ItemTracker;
+import com.groupitemtracker.TrackedContainer;
+import com.groupitemtracker.TrackedItem;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -22,7 +25,7 @@ import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.SwingUtil;
 
 @Slf4j
-public class SidebarItemPanel extends PluginPanel
+public class TrackedItemPanel extends PluginPanel
 {
 	private static final Color BACKGROUND_COLOR = ColorScheme.DARKER_GRAY_COLOR;
 	private static final Color TEXT_COLOR_PRIMARY = ColorScheme.BRAND_ORANGE;
@@ -37,7 +40,7 @@ public class SidebarItemPanel extends PluginPanel
 	private final ItemTracker itemTracker;
 	private final TrackedItem trackedItem;
 
-	public SidebarItemPanel(ClientThread clientThread, ItemTracker itemTracker, TrackedItem trackedItem, AsyncBufferedImage itemIcon)
+	public TrackedItemPanel(ClientThread clientThread, ItemTracker itemTracker, TrackedItem trackedItem, AsyncBufferedImage itemIcon)
 	{
 		this.clientThread = clientThread;
 		this.itemTracker = itemTracker;

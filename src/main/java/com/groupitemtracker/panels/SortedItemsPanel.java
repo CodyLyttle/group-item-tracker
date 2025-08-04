@@ -1,4 +1,4 @@
-package com.groupitemtracker;
+package com.groupitemtracker.panels;
 
 import java.awt.GridLayout;
 import java.util.Comparator;
@@ -6,11 +6,11 @@ import java.util.TreeMap;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.PluginPanel;
 
-public class SortedItemsContainer<TKey, TItemPanel extends PluginPanel> extends PluginPanel
+public class SortedItemsPanel<TKey, TItemPanel extends PluginPanel> extends PluginPanel
 {
 	private final TreeMap<TKey, TItemPanel> _itemPanels;
 
-	public SortedItemsContainer(Comparator<TKey> keySorter)
+	public SortedItemsPanel(Comparator<TKey> keySorter)
 	{
 		_itemPanels = new TreeMap<>(keySorter);
 		setLayout(new GridLayout(0, 1, 0, 4));

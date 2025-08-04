@@ -2,7 +2,6 @@ package com.groupitemtracker;
 
 import com.google.inject.Inject;
 import java.util.Collection;
-import net.runelite.api.ItemComposition;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemVariationMapping;
 
