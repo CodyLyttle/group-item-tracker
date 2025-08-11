@@ -6,7 +6,7 @@ import com.groupitemtracker.events.ItemAdded;
 import com.groupitemtracker.events.ItemRemoved;
 import com.groupitemtracker.events.ItemUpdated;
 import java.awt.BorderLayout;
-import java.util.Comparator;
+import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
@@ -15,7 +15,6 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
-import net.runelite.client.ui.DynamicGridLayout;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.AsyncBufferedImage;
@@ -25,9 +24,8 @@ public class SidebarPanel extends PluginPanel
 	private static final String LOGIN_HINT_LABEL = "Login to view your tracked items";
 	private static final String TUTORIAL_HINT_LABEL = "Right-click bank item to track";
 
-	private final Comparator<TrackedItem> itemComparer = Comparator.comparing(TrackedItem::getItemName);
-	private final SortedItemsPanel<TrackedItem, TrackedItemPanel> claimedItemsContainer = new SortedItemsPanel<>(itemComparer);
-	private final SortedItemsPanel<TrackedItem, TrackedItemPanel> unclaimedItemsContainer = new SortedItemsPanel<>(itemComparer);
+	private final ItemPanelContainer claimedItemsContainer = new ItemPanelContainer("Claimed Items");
+	private final ItemPanelContainer unclaimedItemsContainer = new ItemPanelContainer("Unclaimed Items");
 	private final ClientThread clientThread;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
@@ -52,10 +50,10 @@ public class SidebarPanel extends PluginPanel
 		headerPanel.add(hintLabel, BorderLayout.SOUTH);
 
 		setBorder(new EmptyBorder(6, 6, 6, 6));
-		setLayout(new DynamicGridLayout(3, 1, 0, 4));
+		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 		add(headerPanel, BorderLayout.NORTH);
-		add(claimedItemsContainer, BorderLayout.CENTER);
-		add(unclaimedItemsContainer, BorderLayout.CENTER);
+		add(claimedItemsContainer);
+		add(unclaimedItemsContainer);
 	}
 
 	public void login()
@@ -64,12 +62,13 @@ public class SidebarPanel extends PluginPanel
 
 		for (TrackedItem item : itemTracker.getItems())
 		{
-			final TrackedItemPanel itemPanel = createItemPanel(item);
+			final ItemPanel itemPanel = createItemPanel(item);
 			final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
-			itemContainer.addItem(item, itemPanel);
+			itemContainer.addItemPanel(itemPanel);
 		}
 
-		refreshItemContainers();
+		refreshItemContainer(claimedItemsContainer);
+		refreshItemContainer(unclaimedItemsContainer);
 	}
 
 	public void logout()
@@ -77,18 +76,18 @@ public class SidebarPanel extends PluginPanel
 		hintLabel.setText(LOGIN_HINT_LABEL);
 		claimedItemsContainer.clearItems();
 		unclaimedItemsContainer.clearItems();
-		refreshItemContainers();
+		refreshItemContainer(claimedItemsContainer);
+		refreshItemContainer(unclaimedItemsContainer);
 	}
 
 	@Subscribe
 	public void onItemAdded(ItemAdded event)
 	{
 		final TrackedItem item = event.getItem();
-		final TrackedItemPanel itemPanel = createItemPanel(item);
+		final ItemPanel itemPanel = createItemPanel(item);
 		final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
-		itemContainer.addItem(item, itemPanel);
-		itemContainer.revalidate();
-		itemContainer.repaint();
+		itemContainer.addItemPanel(itemPanel);
+		refreshItemContainer(itemContainer);
 	}
 
 	@Subscribe
@@ -96,9 +95,9 @@ public class SidebarPanel extends PluginPanel
 	{
 		final TrackedItem item = event.getItem();
 		final var itemContainer = getItemContainerOrThrow(item);
-		itemContainer.removeItem(item);
-		itemContainer.revalidate();
-		itemContainer.repaint();
+		final var itemPanel = itemContainer.getItemPanel(item);
+		itemContainer.removeItemPanel(itemPanel);
+		refreshItemContainer(itemContainer);
 	}
 
 	// TODO: Batch refresh containers.
@@ -107,37 +106,39 @@ public class SidebarPanel extends PluginPanel
 	{
 		final TrackedItem item = event.getItem();
 		final var itemContainer = getItemContainerOrThrow(item);
-		final TrackedItemPanel itemPanel = itemContainer.getItemPanel(item);
+		final ItemPanel itemPanel = itemContainer.getItemPanel(item);
 		itemPanel.refresh();
 
 		if (itemContainer == claimedItemsContainer && item.getTotalCount() == 0)
 		{
-			claimedItemsContainer.removeItem(item);
-			unclaimedItemsContainer.addItem(item, itemPanel);
-			refreshItemContainers();
+			claimedItemsContainer.removeItemPanel(itemPanel);
+			unclaimedItemsContainer.addItemPanel(itemPanel);
+			refreshItemContainer(claimedItemsContainer);
+			refreshItemContainer(unclaimedItemsContainer);
 		}
 		else if (itemContainer == unclaimedItemsContainer && item.getTotalCount() > 0)
 		{
-			unclaimedItemsContainer.removeItem(item);
-			claimedItemsContainer.addItem(item, itemPanel);
-			refreshItemContainers();
+			unclaimedItemsContainer.removeItemPanel(itemPanel);
+			claimedItemsContainer.addItemPanel(itemPanel);
+			refreshItemContainer(claimedItemsContainer);
+			refreshItemContainer(unclaimedItemsContainer);
 		}
 	}
 
-	private TrackedItemPanel createItemPanel(TrackedItem item)
+	private ItemPanel createItemPanel(TrackedItem item)
 	{
 		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
-		return new TrackedItemPanel(clientThread, itemTracker, item, image);
+		return new ItemPanel(clientThread, itemTracker, item, image);
 	}
 
-	private SortedItemsPanel<TrackedItem, TrackedItemPanel> getItemContainerOrThrow(TrackedItem item)
+	private ItemPanelContainer getItemContainerOrThrow(TrackedItem item)
 	{
-		if (claimedItemsContainer.containsKey(item))
+		if (claimedItemsContainer.containsItem(item))
 		{
 			return claimedItemsContainer;
 		}
 
-		if (unclaimedItemsContainer.containsKey(item))
+		if (unclaimedItemsContainer.containsItem(item))
 		{
 			return unclaimedItemsContainer;
 		}
@@ -145,11 +146,10 @@ public class SidebarPanel extends PluginPanel
 		throw new IllegalArgumentException("An item panel doesn't exist for item: " + item.toString());
 	}
 
-	private void refreshItemContainers()
+	private void refreshItemContainer(ItemPanelContainer container)
 	{
-		claimedItemsContainer.revalidate();
-		claimedItemsContainer.repaint();
-		unclaimedItemsContainer.revalidate();
-		unclaimedItemsContainer.repaint();
+		container.setVisible(container.getItemCount() > 0);
+		container.revalidate();
+		container.repaint();
 	}
 }

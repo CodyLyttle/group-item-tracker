@@ -13,6 +13,7 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Constants;
 import net.runelite.client.callback.ClientThread;
@@ -25,7 +26,7 @@ import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.SwingUtil;
 
 @Slf4j
-public class TrackedItemPanel extends PluginPanel
+public class ItemPanel extends PluginPanel
 {
 	private static final Color BACKGROUND_COLOR = ColorScheme.DARKER_GRAY_COLOR;
 	private static final Color TEXT_COLOR_PRIMARY = ColorScheme.BRAND_ORANGE;
@@ -38,19 +39,21 @@ public class TrackedItemPanel extends PluginPanel
 
 	private final ClientThread clientThread;
 	private final ItemTracker itemTracker;
-	private final TrackedItem trackedItem;
+	
+	@Getter
+	private final TrackedItem item;
 
-	public TrackedItemPanel(ClientThread clientThread, ItemTracker itemTracker, TrackedItem trackedItem, AsyncBufferedImage itemIcon)
+	public ItemPanel(ClientThread clientThread, ItemTracker itemTracker, TrackedItem item, AsyncBufferedImage itemIcon)
 	{
 		this.clientThread = clientThread;
 		this.itemTracker = itemTracker;
-		this.trackedItem = trackedItem;
+		this.item = item;
 
 		final var icon = new JLabel();
 		icon.setMinimumSize(new Dimension(Constants.ITEM_SPRITE_WIDTH, Constants.ITEM_SPRITE_HEIGHT));
 		itemIcon.addTo(icon);
 
-		nameLabel = new JShadowedLabel(trackedItem.getItemName());
+		nameLabel = new JShadowedLabel(item.getItemName());
 		nameLabel.setFont(FontManager.getRunescapeFont());
 		locationsLabel = new JLabel();
 		locationsLabel.setFont(FontManager.getRunescapeSmallFont());
@@ -82,12 +85,12 @@ public class TrackedItemPanel extends PluginPanel
 
 	private void removeFromItemTracker(ActionEvent e)
 	{
-		clientThread.invoke(() -> itemTracker.removeItem(trackedItem.getItemID()));
+		clientThread.invoke(() -> itemTracker.removeItem(item.getItemID()));
 	}
 
 	public void refresh()
 	{
-		nameLabel.setForeground(trackedItem.getTotalCount() > 0 ? TEXT_COLOR_PRIMARY : TEXT_COLOR_SECONDARY);
+		nameLabel.setForeground(item.getTotalCount() > 0 ? TEXT_COLOR_PRIMARY : TEXT_COLOR_SECONDARY);
 		locationsLabel.setText(buildLocationsString());
 		repaint();
 	}
@@ -100,7 +103,7 @@ public class TrackedItemPanel extends PluginPanel
 
 		for (var container : TrackedContainer.values())
 		{
-			if (trackedItem.getContainerCount(container) == 0)
+			if (item.getContainerCount(container) == 0)
 			{
 				continue;
 			}
