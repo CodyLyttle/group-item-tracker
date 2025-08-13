@@ -24,8 +24,8 @@ public class SidebarPanel extends PluginPanel
 	private static final String LOGIN_HINT_LABEL = "Login to view your tracked items";
 	private static final String TUTORIAL_HINT_LABEL = "Right-click bank item to track";
 
-	private final ItemPanelContainer claimedItemsContainer = new ItemPanelContainer("Claimed Items");
-	private final ItemPanelContainer unclaimedItemsContainer = new ItemPanelContainer("Unclaimed Items");
+	private final ItemPanelContainer claimedItemsContainer;
+	private final ItemPanelContainer unclaimedItemsContainer;
 	private final ClientThread clientThread;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
@@ -36,6 +36,11 @@ public class SidebarPanel extends PluginPanel
 		this.clientThread = clientThread;
 		this.itemManager = itemManager;
 		this.itemTracker = itemTracker;
+
+		claimedItemsContainer = new ItemPanelContainer("Claimed Items");
+		claimedItemsContainer.setVisible(false);
+		unclaimedItemsContainer = new ItemPanelContainer("Unclaimed Items");
+		unclaimedItemsContainer.setVisible(false);
 
 		final var header = new JLabel("Group Item Tracker");
 		header.setFont(FontManager.getRunescapeFont());
@@ -59,6 +64,8 @@ public class SidebarPanel extends PluginPanel
 	public void login()
 	{
 		hintLabel.setText(TUTORIAL_HINT_LABEL);
+		claimedItemsContainer.setVisible(true);
+		unclaimedItemsContainer.setVisible(true);
 
 		for (TrackedItem item : itemTracker.getItems())
 		{
@@ -75,7 +82,9 @@ public class SidebarPanel extends PluginPanel
 	{
 		hintLabel.setText(LOGIN_HINT_LABEL);
 		claimedItemsContainer.clearItems();
+		claimedItemsContainer.setVisible(false);
 		unclaimedItemsContainer.clearItems();
+		unclaimedItemsContainer.setVisible(false);
 		refreshItemContainer(claimedItemsContainer);
 		refreshItemContainer(unclaimedItemsContainer);
 	}
