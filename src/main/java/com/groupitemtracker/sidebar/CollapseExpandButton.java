@@ -1,4 +1,4 @@
-package com.groupitemtracker.panels;
+package com.groupitemtracker.sidebar;
 
 import java.awt.event.ActionEvent;
 import javax.swing.ImageIcon;

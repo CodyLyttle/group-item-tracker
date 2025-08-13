@@ -1,4 +1,4 @@
-package com.groupitemtracker.panels;
+package com.groupitemtracker.sidebar;
 
 import com.groupitemtracker.ItemTracker;
 import com.groupitemtracker.TrackedItem;
@@ -6,11 +6,11 @@ import com.groupitemtracker.events.ItemAdded;
 import com.groupitemtracker.events.ItemRemoved;
 import com.groupitemtracker.events.ItemUpdated;
 import java.awt.BorderLayout;
+import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
-import javax.swing.border.EmptyBorder;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
@@ -37,26 +37,28 @@ public class SidebarPanel extends PluginPanel
 		this.itemManager = itemManager;
 		this.itemTracker = itemTracker;
 
-		claimedItemsContainer = new ItemPanelContainer("Claimed Items");
-		claimedItemsContainer.setVisible(false);
-		unclaimedItemsContainer = new ItemPanelContainer("Unclaimed Items");
-		unclaimedItemsContainer.setVisible(false);
-
+		final var headerPanel = new JPanel(new BorderLayout());
+		headerPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+		headerPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		final var header = new JLabel("Group Item Tracker");
 		header.setFont(FontManager.getRunescapeFont());
 		header.setHorizontalAlignment(SwingConstants.CENTER);
 		hintLabel = new JLabel(LOGIN_HINT_LABEL);
 		hintLabel.setFont(FontManager.getRunescapeSmallFont());
 		hintLabel.setHorizontalAlignment(SwingConstants.CENTER);
-		final var headerPanel = new JPanel(new BorderLayout());
-		headerPanel.setBorder(new EmptyBorder(8, 12, 8, 12));
-		headerPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		headerPanel.add(header, BorderLayout.NORTH);
 		headerPanel.add(hintLabel, BorderLayout.SOUTH);
 
-		setBorder(new EmptyBorder(6, 6, 6, 6));
+		claimedItemsContainer = new ItemPanelContainer("Claimed");
+		claimedItemsContainer.setBorder(BorderFactory.createEmptyBorder(12, 0, 0, 0));
+		claimedItemsContainer.setVisible(false);
+		unclaimedItemsContainer = new ItemPanelContainer("Unclaimed");
+		unclaimedItemsContainer.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
+		unclaimedItemsContainer.setVisible(false);
+
+		setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-		add(headerPanel, BorderLayout.NORTH);
+		add(headerPanel);
 		add(claimedItemsContainer);
 		add(unclaimedItemsContainer);
 	}

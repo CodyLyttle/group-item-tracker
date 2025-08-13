@@ -2,7 +2,7 @@ package com.groupitemtracker;
 
 import com.google.gson.Gson;
 import com.google.inject.Provides;
-import com.groupitemtracker.panels.SidebarPanel;
+import com.groupitemtracker.sidebar.SidebarPanel;
 import java.awt.image.BufferedImage;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
