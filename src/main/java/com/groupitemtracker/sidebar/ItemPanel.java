@@ -6,7 +6,8 @@ import com.groupitemtracker.TrackedItem;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.event.ActionEvent;
+import java.util.Arrays;
+import java.util.HashMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -35,19 +36,52 @@ public class ItemPanel extends PluginPanel
 	private static final Color TEXT_COLOR_LOCATION_HINT = Color.gray;
 	private static final String DELETE_TOOLTIP = "Remove from GIM item tracker";
 	private static final ImageIcon DELETE_ICON = new ImageIcon(ImageUtil.loadImageResource(PluginPanel.class, "/delete_icon.png"));
+	private static final HashMap<Integer, String> cachedLocationStrings;
+
+	static
+	{
+		// Use bitmask enumeration to generate a string for every possible combination of locations. 
+		// Each location is represented by a single bit in an integer.
+		// All possible combinations are covered by iterating the bitmask from 1 to 2^n-1.
+		// The set bits of the mask indicate which locations are included in the combination.
+		
+		final String[] locationNames = Arrays.stream(TrackedContainer.values())
+			.map((value) -> value.description)
+			.toArray(String[]::new);
+
+		final int n = locationNames.length;
+		final int combinations = (1 << n) - 1;
+		cachedLocationStrings = new HashMap<>();
+
+		for (int bitmask = 1; bitmask <= combinations; bitmask++)
+		{
+			var sb = new StringBuilder();
+
+			for (int i = 0; i < n; i++)
+			{
+				if ((bitmask & (1 << i)) != 0)
+				{
+					if (sb.length() > 0)
+					{
+						sb.append(", ");
+					}
+
+					sb.append(locationNames[i]);
+				}
+			}
+
+			cachedLocationStrings.put(bitmask, sb.toString());
+		}
+	}
 
 	private final JLabel nameLabel;
 	private final JLabel locationsLabel;
-	private final ClientThread clientThread;
-	private final ItemTracker itemTracker;
 
 	@Getter
 	private final TrackedItem item;
 
 	public ItemPanel(ClientThread clientThread, ItemTracker itemTracker, TrackedItem item, AsyncBufferedImage itemIcon)
 	{
-		this.clientThread = clientThread;
-		this.itemTracker = itemTracker;
 		this.item = item;
 
 		final var icon = new JLabel();
@@ -74,9 +108,9 @@ public class ItemPanel extends PluginPanel
 		buttonPanel.setPreferredSize(new Dimension(20, 20));
 		buttonPanel.setBackground(BACKGROUND_COLOR);
 		final var removeButton = new JButton();
+		removeButton.addActionListener((e) -> clientThread.invoke(() -> itemTracker.removeItem(item.getItemID())));
 		removeButton.setIcon(DELETE_ICON);
 		removeButton.setToolTipText(DELETE_TOOLTIP);
-		removeButton.addActionListener(this::removeFromItemTracker);
 		SwingUtil.removeButtonDecorations(removeButton);
 		buttonPanel.add(removeButton);
 
@@ -88,11 +122,6 @@ public class ItemPanel extends PluginPanel
 		refresh();
 	}
 
-	private void removeFromItemTracker(ActionEvent e)
-	{
-		clientThread.invoke(() -> itemTracker.removeItem(item.getItemID()));
-	}
-
 	public void refresh()
 	{
 		final boolean isClaimed = item.getTotalCount() > 0;
@@ -100,13 +129,12 @@ public class ItemPanel extends PluginPanel
 		if (isClaimed)
 		{
 			nameLabel.setForeground(TEXT_COLOR_CLAIMED);
-			locationsLabel.setText(buildLocationsString());
+			locationsLabel.setText(getLocationString());
 			locationsLabel.setVisible(true);
 		}
 		else
 		{
 			nameLabel.setForeground(TEXT_COLOR_UNCLAIMED);
-			locationsLabel.setText("");
 			locationsLabel.setVisible(false);
 		}
 
@@ -114,28 +142,19 @@ public class ItemPanel extends PluginPanel
 		repaint();
 	}
 
-	// TODO: Should we cache location strings to minimize allocations?
-	private String buildLocationsString()
+	private String getLocationString()
 	{
-		final StringBuilder sb = new StringBuilder();
-		boolean firstLocation = true;
+		int bitmask = 0;
+		TrackedContainer[] containers = TrackedContainer.values();
 
-		for (var container : TrackedContainer.values())
+		for (int i = 0; i < containers.length; i++)
 		{
-			if (item.getContainerCount(container) == 0)
+			if (item.getContainerCount(containers[i]) > 0)
 			{
-				continue;
+				bitmask |= (1 << i);
 			}
-
-			if (!firstLocation)
-			{
-				sb.append(", ");
-			}
-
-			sb.append(container.description);
-			firstLocation = false;
 		}
 
-		return sb.toString();
+		return cachedLocationStrings.get(bitmask);
 	}
 }
