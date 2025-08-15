@@ -39,7 +39,7 @@ public class SidebarPanel extends PluginPanel
 
 		final var headerPanel = new JPanel(new BorderLayout());
 		headerPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-		headerPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		headerPanel.setBackground(ColorScheme.BORDER_COLOR);
 		final var header = new JLabel("Group Item Tracker");
 		header.setFont(FontManager.getRunescapeFont());
 		header.setHorizontalAlignment(SwingConstants.CENTER);
@@ -50,7 +50,7 @@ public class SidebarPanel extends PluginPanel
 		headerPanel.add(hintLabel, BorderLayout.SOUTH);
 
 		claimedItemsContainer = new ItemPanelContainer("Claimed");
-		claimedItemsContainer.setBorder(BorderFactory.createEmptyBorder(12, 0, 0, 0));
+		claimedItemsContainer.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
 		claimedItemsContainer.setVisible(false);
 		unclaimedItemsContainer = new ItemPanelContainer("Unclaimed");
 		unclaimedItemsContainer.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
