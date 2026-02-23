@@ -8,6 +8,7 @@ import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.ItemContainer;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.gameval.ItemID;
@@ -132,9 +133,16 @@ public class GroupItemTrackerPlugin extends Plugin
 	{
 		isProfileLoaded = true;
 		itemTracker.loadProfile(profileManager);
-		
-		boolean isBankOpen = client.getItemContainer(InventoryID.BANK) != null;
+
+		ItemContainer bank = client.getItemContainer(InventoryID.BANK);
+		boolean isBankOpen = bank != null;
 		sidebarPanel.login(isBankOpen);
+		
+		// Force the overlay to render if we're already in the bank
+		if (isBankOpen)
+		{
+			bankItemOverlay.refreshContainer(bank);
+		}
 	}
 
 	private void unloadProfile()

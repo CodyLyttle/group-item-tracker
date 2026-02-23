@@ -91,7 +91,7 @@ public class BankInterfaceManager extends WidgetItemOverlay
 		final int containerID = event.getContainerId();
 		if (containerID == InventoryID.BANK || containerID == InventoryID.INV_GROUP_TEMP)
 		{
-			refreshItemCache(event.getItemContainer());
+			refreshContainer(event.getItemContainer());
 		}
 	}
 
@@ -101,7 +101,7 @@ public class BankInterfaceManager extends WidgetItemOverlay
 		ItemContainer bankContainer = getBankContainerOrNull();
 		if (bankContainer != null)
 		{
-			refreshItemCache(bankContainer);
+			refreshContainer(bankContainer);
 		}
 	}
 
@@ -135,7 +135,7 @@ public class BankInterfaceManager extends WidgetItemOverlay
 				final ItemContainer bankContainer = getBankContainerOrNull();
 				if (bankContainer != null)
 				{
-					refreshItemCache(bankContainer);
+					refreshContainer(bankContainer);
 				}
 			});
 		}
@@ -181,7 +181,7 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	}
 
 	// Profiled: < 1ms.
-	private void refreshItemCache(ItemContainer bankContainer)
+	public void refreshContainer(ItemContainer bankContainer)
 	{
 		assert bankContainer.getId() == InventoryID.BANK || bankContainer.getId() == InventoryID.INV_GROUP_TEMP;
 
