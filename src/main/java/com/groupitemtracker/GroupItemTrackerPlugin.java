@@ -8,6 +8,7 @@ import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.gameval.ItemID;
 import net.runelite.client.callback.ClientThread;
@@ -131,7 +132,9 @@ public class GroupItemTrackerPlugin extends Plugin
 	{
 		isProfileLoaded = true;
 		itemTracker.loadProfile(profileManager);
-		sidebarPanel.login();
+		
+		boolean isBankOpen = client.getItemContainer(InventoryID.BANK) != null;
+		sidebarPanel.login(isBankOpen);
 	}
 
 	private void unloadProfile()

@@ -12,6 +12,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
@@ -24,6 +26,7 @@ public class SidebarPanel extends PluginPanel
 {
 	private static final String LOGIN_HINT_LABEL = "Login to view your tracked items";
 	private static final String TUTORIAL_HINT_LABEL = "Right-click bank item to track";
+	private static final String INITIAL_SYNC_HINT_LABEL = "Open bank to finish syncing";
 
 	private final ItemPanelContainer claimedItemsContainer;
 	private final ItemPanelContainer unclaimedItemsContainer;
@@ -31,6 +34,8 @@ public class SidebarPanel extends PluginPanel
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
 	private final JLabel hintLabel;
+
+	private boolean isSyncedWithBank;
 
 	public SidebarPanel(ClientThread clientThread, ItemManager itemManager, ItemTracker itemTracker)
 	{
@@ -64,11 +69,20 @@ public class SidebarPanel extends PluginPanel
 		add(unclaimedItemsContainer);
 	}
 
-	public void login()
+	public void login(boolean isBankOpen)
 	{
 		SwingUtilities.invokeLater(() ->
 		{
-			hintLabel.setText(TUTORIAL_HINT_LABEL);
+			if (isBankOpen)
+			{
+				isSyncedWithBank = true;
+				hintLabel.setText(TUTORIAL_HINT_LABEL);
+			}
+			else
+			{
+				isSyncedWithBank = false;
+				hintLabel.setText(INITIAL_SYNC_HINT_LABEL);
+			}
 
 			for (TrackedItem item : itemTracker.getItems())
 			{
@@ -94,6 +108,16 @@ public class SidebarPanel extends PluginPanel
 			claimedItemsContainer.refresh();
 			unclaimedItemsContainer.refresh();
 		});
+	}
+
+	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		if (!isSyncedWithBank && event.getContainerId() == InventoryID.BANK)
+		{
+			isSyncedWithBank = true;
+			SwingUtilities.invokeLater(() -> hintLabel.setText(TUTORIAL_HINT_LABEL));
+		}
 	}
 
 	@Subscribe
