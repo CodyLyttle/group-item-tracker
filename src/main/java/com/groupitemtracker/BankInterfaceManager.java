@@ -154,11 +154,13 @@ public class BankInterfaceManager extends WidgetItemOverlay
 		switch (event.getEventName())
 		{
 			// Append bank search keyword hint.
+			// Shared storage quickly overwrites our message, not sure if we can prevent this.
 			case "setSearchBankInputText":
 			case "setSearchBankInputTextFound":
 				stringStack[stringStackSize - 1] = stringStack[stringStackSize - 1] + BANK_SEARCH_KEYWORD_HINT;
 				break;
 			// Bank search keyword overrides filter to display tracked items.
+			// This works for both bank and shared storage.
 			case "bankSearchFilter":
 				final String searchFilter = (String) stringStack[stringStackSize - 1];
 				if (searchFilter.equals(BANK_SEARCH_KEYWORD))
