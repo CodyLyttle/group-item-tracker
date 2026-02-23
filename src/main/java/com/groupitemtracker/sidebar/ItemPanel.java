@@ -7,7 +7,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.util.Arrays;
-import java.util.HashMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -16,7 +15,6 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Constants;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.ui.ColorScheme;
@@ -27,7 +25,6 @@ import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.SwingUtil;
 
-@Slf4j
 public class ItemPanel extends PluginPanel
 {
 	private static final Color BACKGROUND_COLOR = ColorScheme.DARKER_GRAY_COLOR;
@@ -36,41 +33,40 @@ public class ItemPanel extends PluginPanel
 	private static final Color TEXT_COLOR_LOCATION_HINT = Color.gray;
 	private static final String DELETE_TOOLTIP = "Remove from GIM item tracker";
 	private static final ImageIcon DELETE_ICON = new ImageIcon(ImageUtil.loadImageResource(PluginPanel.class, "/delete_icon.png"));
-	private static final HashMap<Integer, String> cachedLocationStrings;
+	private static final String[] cachedLocationStrings;
 
 	static
 	{
 		// Use bitmask enumeration to generate a string for every possible combination of locations. 
-		// Each location is represented by a single bit in an integer.
-		// All possible combinations are covered by iterating the bitmask from 1 to 2^n-1.
 		// The set bits of the mask indicate which locations are included in the combination.
-		
+		// 0 = empty string, 2^n-1 = all locations.
+
 		final String[] locationNames = Arrays.stream(TrackedContainer.values())
 			.map((value) -> value.description)
 			.toArray(String[]::new);
 
 		final int n = locationNames.length;
-		final int combinations = (1 << n) - 1;
-		cachedLocationStrings = new HashMap<>();
+		final int combinations = (1 << n);
+		cachedLocationStrings = new String[combinations];
 
-		for (int bitmask = 1; bitmask <= combinations; bitmask++)
+		var sb = new StringBuilder();
+		for (int mask = 0; mask < combinations; mask++)
 		{
-			var sb = new StringBuilder();
-
-			for (int i = 0; i < n; i++)
+			for (int bit = 0; bit < n; bit++)
 			{
-				if ((bitmask & (1 << i)) != 0)
+				if ((mask & (1 << bit)) != 0)
 				{
 					if (sb.length() > 0)
 					{
 						sb.append(", ");
 					}
 
-					sb.append(locationNames[i]);
+					sb.append(locationNames[bit]);
 				}
 			}
 
-			cachedLocationStrings.put(bitmask, sb.toString());
+			cachedLocationStrings[mask] = sb.toString();
+			sb.setLength(0);
 		}
 	}
 
@@ -155,6 +151,6 @@ public class ItemPanel extends PluginPanel
 			}
 		}
 
-		return cachedLocationStrings.get(bitmask);
+		return cachedLocationStrings[bitmask];
 	}
 }
