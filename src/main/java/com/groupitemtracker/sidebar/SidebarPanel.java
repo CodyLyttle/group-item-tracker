@@ -11,6 +11,7 @@ import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
@@ -65,75 +66,91 @@ public class SidebarPanel extends PluginPanel
 
 	public void login()
 	{
-		hintLabel.setText(TUTORIAL_HINT_LABEL);
-		claimedItemsContainer.setVisible(true);
-		unclaimedItemsContainer.setVisible(true);
-
-		for (TrackedItem item : itemTracker.getItems())
+		SwingUtilities.invokeLater(() ->
 		{
-			final ItemPanel itemPanel = createItemPanel(item);
-			final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
-			itemContainer.addItemPanel(itemPanel);
-		}
+			hintLabel.setText(TUTORIAL_HINT_LABEL);
 
-		refreshItemContainer(claimedItemsContainer);
-		refreshItemContainer(unclaimedItemsContainer);
+			for (TrackedItem item : itemTracker.getItems())
+			{
+				final ItemPanel itemPanel = createItemPanel(item);
+				final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
+				itemContainer.addItemPanel(itemPanel);
+			}
+
+			claimedItemsContainer.refresh();
+			unclaimedItemsContainer.refresh();
+		});
 	}
 
 	public void logout()
 	{
-		hintLabel.setText(LOGIN_HINT_LABEL);
-		claimedItemsContainer.clearItems();
-		claimedItemsContainer.setVisible(false);
-		unclaimedItemsContainer.clearItems();
-		unclaimedItemsContainer.setVisible(false);
-		refreshItemContainer(claimedItemsContainer);
-		refreshItemContainer(unclaimedItemsContainer);
+		SwingUtilities.invokeLater(() ->
+		{
+			hintLabel.setText(LOGIN_HINT_LABEL);
+
+			claimedItemsContainer.clearItems();
+			unclaimedItemsContainer.clearItems();
+
+			claimedItemsContainer.refresh();
+			unclaimedItemsContainer.refresh();
+		});
 	}
 
 	@Subscribe
 	public void onItemAdded(ItemAdded event)
 	{
-		final TrackedItem item = event.getItem();
-		final ItemPanel itemPanel = createItemPanel(item);
-		final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
-		itemContainer.addItemPanel(itemPanel);
-		refreshItemContainer(itemContainer);
+		SwingUtilities.invokeLater(() ->
+		{
+			final TrackedItem item = event.getItem();
+			final ItemPanel itemPanel = createItemPanel(item);
+			final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
+			itemContainer.addItemPanel(itemPanel);
+			itemContainer.refresh();
+		});
 	}
 
 	@Subscribe
 	private void onItemRemoved(ItemRemoved event)
 	{
-		final TrackedItem item = event.getItem();
-		final var itemContainer = getItemContainerOrThrow(item);
-		final var itemPanel = itemContainer.getItemPanel(item);
-		itemContainer.removeItemPanel(itemPanel);
-		refreshItemContainer(itemContainer);
+		SwingUtilities.invokeLater(() ->
+		{
+			final TrackedItem item = event.getItem();
+			final var itemContainer = getItemContainerOrThrow(item);
+			final var itemPanel = itemContainer.getItemPanel(item);
+			itemContainer.removeItemPanel(itemPanel);
+			itemContainer.refresh();
+		});
 	}
 
-	// TODO: Batch refresh containers.
+	// TODO: Check if initial bank sync with many claimed items results in performance issues.
+	// Does Swing batch nearby calls to revalidate and repaint, or will updating 10x items at once result in 10x work?
 	@Subscribe
 	private void onItemUpdated(ItemUpdated event)
 	{
-		final TrackedItem item = event.getItem();
-		final var itemContainer = getItemContainerOrThrow(item);
-		final ItemPanel itemPanel = itemContainer.getItemPanel(item);
-		itemPanel.refresh();
+		SwingUtilities.invokeLater(() ->
+		{
+			final TrackedItem item = event.getItem();
+			final var itemContainer = getItemContainerOrThrow(item);
+			final ItemPanel itemPanel = itemContainer.getItemPanel(item);
 
-		if (itemContainer == claimedItemsContainer && item.getTotalCount() == 0)
-		{
-			claimedItemsContainer.removeItemPanel(itemPanel);
-			unclaimedItemsContainer.addItemPanel(itemPanel);
-			refreshItemContainer(claimedItemsContainer);
-			refreshItemContainer(unclaimedItemsContainer);
-		}
-		else if (itemContainer == unclaimedItemsContainer && item.getTotalCount() > 0)
-		{
-			unclaimedItemsContainer.removeItemPanel(itemPanel);
-			claimedItemsContainer.addItemPanel(itemPanel);
-			refreshItemContainer(claimedItemsContainer);
-			refreshItemContainer(unclaimedItemsContainer);
-		}
+			// Guaranteed to change, regardless of whether it moves containers or not.
+			itemPanel.refresh();
+
+			if (itemContainer == claimedItemsContainer && item.getTotalCount() == 0)
+			{
+				claimedItemsContainer.removeItemPanel(itemPanel);
+				unclaimedItemsContainer.addItemPanel(itemPanel);
+				claimedItemsContainer.refresh();
+				unclaimedItemsContainer.refresh();
+			}
+			else if (itemContainer == unclaimedItemsContainer && item.getTotalCount() > 0)
+			{
+				claimedItemsContainer.addItemPanel(itemPanel);
+				unclaimedItemsContainer.removeItemPanel(itemPanel);
+				claimedItemsContainer.refresh();
+				unclaimedItemsContainer.refresh();
+			}
+		});
 	}
 
 	private ItemPanel createItemPanel(TrackedItem item)
@@ -155,12 +172,5 @@ public class SidebarPanel extends PluginPanel
 		}
 
 		throw new IllegalArgumentException("An item panel doesn't exist for item: " + item.toString());
-	}
-
-	private void refreshItemContainer(ItemPanelContainer container)
-	{
-		container.setVisible(container.getItemCount() > 0);
-		container.revalidate();
-		container.repaint();
 	}
 }

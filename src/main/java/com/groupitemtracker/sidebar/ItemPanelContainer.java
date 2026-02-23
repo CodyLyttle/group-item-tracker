@@ -47,6 +47,7 @@ public class ItemPanelContainer extends PluginPanel
 	{
 		itemContainer.removeAll();
 		itemContainer.revalidate();
+		itemContainer.repaint();
 	}
 
 	private void expandItems()
@@ -57,11 +58,7 @@ public class ItemPanelContainer extends PluginPanel
 		}
 
 		itemContainer.revalidate();
-	}
-
-	public int getItemCount()
-	{
-		return items.values().size();
+		itemContainer.repaint();
 	}
 
 	public void addItemPanel(ItemPanel itemPanel)
@@ -100,6 +97,13 @@ public class ItemPanelContainer extends PluginPanel
 	{
 		items.clear();
 		itemContainer.removeAll();
+	}
+
+	public void refresh()
+	{
+		setVisible(items.size() > 0);
+		revalidate();
+		repaint();
 	}
 
 	public boolean containsItem(TrackedItem item)
