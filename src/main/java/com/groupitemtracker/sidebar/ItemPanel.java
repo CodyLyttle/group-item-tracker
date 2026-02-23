@@ -6,10 +6,12 @@ import com.groupitemtracker.TrackedItem;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Image;
 import java.util.Arrays;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.GrayFilter;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -31,16 +33,25 @@ public class ItemPanel extends PluginPanel
 	private static final Color TEXT_COLOR_CLAIMED = ColorScheme.BRAND_ORANGE;
 	private static final Color TEXT_COLOR_UNCLAIMED = ColorScheme.TEXT_COLOR;
 	private static final Color TEXT_COLOR_LOCATION_HINT = Color.gray;
-	private static final String DELETE_TOOLTIP = "Remove from GIM item tracker";
-	private static final ImageIcon DELETE_ICON = new ImageIcon(ImageUtil.loadImageResource(PluginPanel.class, "/delete_icon.png"));
+	private static final String DELETE_TOOLTIP = "Stop tracking this item";
+	private static final ImageIcon DELETE_ICON;
+	private static final ImageIcon DELETE_ICON_DIMMED;
 	private static final String[] cachedLocationStrings;
 
 	static
 	{
-		// Use bitmask enumeration to generate a string for every possible combination of locations. 
+		// Scale down icon so the 30x30 button has some padding.
+		DELETE_ICON = new ImageIcon(ImageUtil.loadImageResource(PluginPanel.class, "/delete_icon.png")
+			.getScaledInstance(24, 24, Image.SCALE_SMOOTH));
+
+		// Alternate icon for when the button isn't hovered.
+		final float alpha = 0.16f;
+		Image grayImage = GrayFilter.createDisabledImage(DELETE_ICON.getImage());
+		DELETE_ICON_DIMMED = new ImageIcon(ImageUtil.alphaOffset(grayImage, alpha));
+
+		// Preallocate all location strings.
 		// The set bits of the mask indicate which locations are included in the combination.
 		// 0 = empty string, 2^n-1 = all locations.
-
 		final String[] locationNames = Arrays.stream(TrackedContainer.values())
 			.map((value) -> value.description)
 			.toArray(String[]::new);
@@ -99,22 +110,21 @@ public class ItemPanel extends PluginPanel
 		infoPanel.add(locationsLabel);
 		infoPanel.add(Box.createVerticalGlue());
 
-		final var buttonPanel = new JPanel(new BorderLayout());
-		buttonPanel.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
-		buttonPanel.setPreferredSize(new Dimension(20, 20));
-		buttonPanel.setBackground(BACKGROUND_COLOR);
 		final var removeButton = new JButton();
 		removeButton.addActionListener((e) -> clientThread.invoke(() -> itemTracker.removeItem(item.getItemID())));
-		removeButton.setIcon(DELETE_ICON);
 		removeButton.setToolTipText(DELETE_TOOLTIP);
+		removeButton.setIcon(DELETE_ICON_DIMMED);
+		removeButton.setPressedIcon(DELETE_ICON);
+		removeButton.setRolloverIcon(DELETE_ICON);
+		removeButton.setRolloverEnabled(true);
+		removeButton.setPreferredSize(new Dimension(30, 30));
 		SwingUtil.removeButtonDecorations(removeButton);
-		buttonPanel.add(removeButton);
 
 		setLayout(new BorderLayout());
 		setBackground(BACKGROUND_COLOR);
 		add(icon, BorderLayout.WEST);
 		add(infoPanel, BorderLayout.CENTER);
-		add(buttonPanel, BorderLayout.EAST);
+		add(removeButton, BorderLayout.EAST);
 		refresh();
 	}
 
