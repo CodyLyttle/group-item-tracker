@@ -5,6 +5,7 @@ import com.groupitemtracker.events.ItemRemoved;
 import com.groupitemtracker.events.ItemUpdated;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import javax.inject.Inject;
@@ -26,7 +27,7 @@ public class ItemTracker
 	private final EventBus eventBus;
 	private final ItemIdentifier itemIdentifier;
 	private final Map<Integer, TrackedItem> itemLookup = new HashMap<>();
-	private final Map<TrackedItem, TrackedItemSnapshot> itemSnapshotLookup = new HashMap<>();
+	private final Map<TrackedItem, EnumMap<TrackedContainer, Integer>> snapshotLookup = new HashMap<>();
 	private boolean bankClosedLastTick = false;
 	private boolean sharedBankClosedLastTick = false;
 	private boolean hasPendingChanges = false;
@@ -46,7 +47,7 @@ public class ItemTracker
 		{
 			for (TrackedItem item : itemLookup.values())
 			{
-				TrackedItemSnapshot snapshot = itemSnapshotLookup.get(item);
+				EnumMap<TrackedContainer, Integer> snapshot = snapshotLookup.get(item);
 				if (item.matchesSnapshot(snapshot))
 				{
 					continue;
@@ -60,14 +61,14 @@ public class ItemTracker
 					final int bankCounter = item.getContainerCount(TrackedContainer.BANK);
 					final int equipmentCounter = item.getContainerCount(TrackedContainer.EQUIPMENT);
 					final int inventoryCounter = item.getContainerCount(TrackedContainer.INVENTORY);
-					final int inventoryCounterSnapshot = snapshot.getContainerCount(TrackedContainer.INVENTORY);
-					final int equipmentCounterSnapshot = snapshot.getContainerCount(TrackedContainer.EQUIPMENT);
+					final int inventoryCounterSnapshot = snapshot.get(TrackedContainer.INVENTORY);
+					final int equipmentCounterSnapshot = snapshot.get(TrackedContainer.EQUIPMENT);
 
 					final int bankDelta = equipmentCounterSnapshot - equipmentCounter + inventoryCounterSnapshot - inventoryCounter;
 					item.setContainerCounter(TrackedContainer.BANK, bankCounter + bankDelta);
 				}
 
-				itemSnapshotLookup.put(item, item.createSnapshot());
+				snapshotLookup.put(item, item.createSnapshot());
 				eventBus.post(new ItemUpdated(item));
 			}
 		}
@@ -107,7 +108,7 @@ public class ItemTracker
 		sharedBankClosedLastTick = false;
 		hasPendingChanges = false;
 		itemLookup.clear();
-		itemSnapshotLookup.clear();
+		snapshotLookup.clear();
 	}
 
 	public void loadProfile(ProfileManager profileManager)
@@ -123,7 +124,7 @@ public class ItemTracker
 
 		for (TrackedItem item : itemLookup.values())
 		{
-			itemSnapshotLookup.put(item, item.createSnapshot());
+			snapshotLookup.put(item, item.createSnapshot());
 		}
 	}
 
@@ -146,7 +147,7 @@ public class ItemTracker
 	{
 		TrackedItem trackedItem = createTrackedItem(itemID);
 		refreshAvailableContainers();
-		itemSnapshotLookup.put(trackedItem, trackedItem.createSnapshot());
+		snapshotLookup.put(trackedItem, trackedItem.createSnapshot());
 		eventBus.post(new ItemAdded(trackedItem));
 		return trackedItem;
 	}
@@ -161,7 +162,7 @@ public class ItemTracker
 			throw new IllegalArgumentException("Cannot remove untracked item: " + itemName);
 		}
 
-		itemSnapshotLookup.remove(removedItem);
+		snapshotLookup.remove(removedItem);
 		eventBus.post(new ItemRemoved(removedItem));
 		return removedItem;
 	}

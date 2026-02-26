@@ -65,13 +65,13 @@ public class TrackedItem
 		return sum;
 	}
 	
-	public boolean matchesSnapshot(TrackedItemSnapshot snapshot)
+	public boolean matchesSnapshot(EnumMap<TrackedContainer, Integer> snapshot)
 	{
 		return snapshot.equals(containerCounters);
 	}
 
-	public TrackedItemSnapshot createSnapshot()
+	public EnumMap<TrackedContainer, Integer> createSnapshot()
 	{
-		return new TrackedItemSnapshot(containerCounters);
+		return new EnumMap<>(containerCounters);
 	}
 }
