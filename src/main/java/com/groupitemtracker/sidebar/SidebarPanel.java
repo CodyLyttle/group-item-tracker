@@ -6,10 +6,17 @@ import com.groupitemtracker.events.ItemAdded;
 import com.groupitemtracker.events.ItemRemoved;
 import com.groupitemtracker.events.ItemUpdated;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.GridLayout;
+import java.util.Comparator;
+import java.util.TreeMap;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import net.runelite.api.events.ItemContainerChanged;
@@ -27,18 +34,26 @@ public class SidebarPanel extends PluginPanel
 	private static final String LOGIN_HINT_LABEL = "Login to view your tracked items";
 	private static final String TUTORIAL_HINT_LABEL = "Right-click bank item to track";
 	private static final String INITIAL_SYNC_HINT_LABEL = "Open bank to finish syncing";
+	private static final Comparator<TrackedItem> ITEM_COMPARER = Comparator.comparing(TrackedItem::getItemName);
+	private static final Color TEXT_COLOR_CLAIMED = ColorScheme.BRAND_ORANGE;
+	private static final Color TEXT_COLOR_UNCLAIMED = ColorScheme.TEXT_COLOR;
 
-	private final ItemPanelContainer claimedItemsContainer;
-	private final ItemPanelContainer unclaimedItemsContainer;
 	private final ClientThread clientThread;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
+	private final TreeMap<TrackedItem, ItemPanel> claimedItems = new TreeMap<>(ITEM_COMPARER);
+	private final TreeMap<TrackedItem, ItemPanel> unclaimedItems = new TreeMap<>(ITEM_COMPARER);
+
 	private final JLabel hintLabel;
+	private final JPanel trackedItemsPanel;
+	private final JLabel trackedItemsLabel;
+	private final JPanel itemPanelContainer;
 
 	private boolean isSyncedWithBank;
 
 	public SidebarPanel(ClientThread clientThread, ItemManager itemManager, ItemTracker itemTracker)
 	{
+		super(false);
 		this.clientThread = clientThread;
 		this.itemManager = itemManager;
 		this.itemTracker = itemTracker;
@@ -55,18 +70,32 @@ public class SidebarPanel extends PluginPanel
 		headerPanel.add(header, BorderLayout.NORTH);
 		headerPanel.add(hintLabel, BorderLayout.SOUTH);
 
-		claimedItemsContainer = new ItemPanelContainer("Claimed");
-		claimedItemsContainer.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
-		claimedItemsContainer.setVisible(false);
-		unclaimedItemsContainer = new ItemPanelContainer("Unclaimed");
-		unclaimedItemsContainer.setBorder(BorderFactory.createEmptyBorder(8, 0, 0, 0));
-		unclaimedItemsContainer.setVisible(false);
+		trackedItemsPanel = new JPanel(new BorderLayout());
+		trackedItemsPanel.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
+		final var trackedItemsHeaderPanel = new JPanel(new BorderLayout());
+		trackedItemsHeaderPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+		trackedItemsHeaderPanel.setBackground(ColorScheme.BORDER_COLOR);
+		trackedItemsLabel = new JLabel();
+		trackedItemsLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		trackedItemsLabel.setFont(FontManager.getRunescapeFont());
+		trackedItemsHeaderPanel.add(trackedItemsLabel);
+		itemPanelContainer = new JPanel(new GridLayout(0, 1, 0, 1));
+		final var itemPanelContainerWrapper = new JPanel(new BorderLayout());
+		itemPanelContainerWrapper.add(itemPanelContainer, BorderLayout.NORTH);
+		final var itemScrollPane = new JScrollPane(itemPanelContainerWrapper);
+		itemScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		itemScrollPane.setBackground(ColorScheme.BORDER_COLOR);
+		trackedItemsPanel.add(trackedItemsHeaderPanel, BorderLayout.NORTH);
+		trackedItemsPanel.add(itemScrollPane, BorderLayout.CENTER);
 
+		setLayout(new BorderLayout());
 		setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
-		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
-		add(headerPanel);
-		add(claimedItemsContainer);
-		add(unclaimedItemsContainer);
+		add(headerPanel, BorderLayout.NORTH);
+		add(trackedItemsPanel, BorderLayout.CENTER);
+		
+		// Hidden until logged in.
+		trackedItemsPanel.setVisible(false);
+
 	}
 
 	public void login(boolean isBankOpen)
@@ -86,13 +115,11 @@ public class SidebarPanel extends PluginPanel
 
 			for (TrackedItem item : itemTracker.getItems())
 			{
-				final ItemPanel itemPanel = createItemPanel(item);
-				final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
-				itemContainer.addItemPanel(itemPanel);
+				addItemPanel(item);
 			}
 
-			claimedItemsContainer.refresh();
-			unclaimedItemsContainer.refresh();
+			trackedItemsPanel.setVisible(true);
+			refreshTrackedItemsPanel();
 		});
 	}
 
@@ -102,11 +129,10 @@ public class SidebarPanel extends PluginPanel
 		{
 			hintLabel.setText(LOGIN_HINT_LABEL);
 
-			claimedItemsContainer.clearItems();
-			unclaimedItemsContainer.clearItems();
-
-			claimedItemsContainer.refresh();
-			unclaimedItemsContainer.refresh();
+			claimedItems.clear();
+			unclaimedItems.clear();
+			itemPanelContainer.removeAll();
+			trackedItemsPanel.setVisible(false);
 		});
 	}
 
@@ -125,11 +151,9 @@ public class SidebarPanel extends PluginPanel
 	{
 		SwingUtilities.invokeLater(() ->
 		{
-			final TrackedItem item = event.getItem();
-			final ItemPanel itemPanel = createItemPanel(item);
-			final var itemContainer = item.getTotalCount() > 0 ? claimedItemsContainer : unclaimedItemsContainer;
-			itemContainer.addItemPanel(itemPanel);
-			itemContainer.refresh();
+			addItemPanel(event.getItem());
+
+			refreshTrackedItemsPanel();
 		});
 	}
 
@@ -138,63 +162,91 @@ public class SidebarPanel extends PluginPanel
 	{
 		SwingUtilities.invokeLater(() ->
 		{
-			final TrackedItem item = event.getItem();
-			final var itemContainer = getItemContainerOrThrow(item);
-			final var itemPanel = itemContainer.getItemPanel(item);
-			itemContainer.removeItemPanel(itemPanel);
-			itemContainer.refresh();
+			TrackedItem item = event.getItem();
+			TreeMap<TrackedItem, ItemPanel> itemCollection = getCollectionForItem(item);
+			ItemPanel itemPanel = itemCollection.remove(item);
+			itemPanelContainer.remove(itemPanel);
+
+			refreshTrackedItemsPanel();
 		});
 	}
 
 	// TODO: Check if initial bank sync with many claimed items results in performance issues.
-	// Does Swing batch nearby calls to revalidate and repaint, or will updating 10x items at once result in 10x work?
+	// Does Swing batch nearby calls to revalidate and repaint, or will updating 10 items at once result in 10x work?
 	@Subscribe
 	private void onItemUpdated(ItemUpdated event)
 	{
 		SwingUtilities.invokeLater(() ->
 		{
 			final TrackedItem item = event.getItem();
-			final var itemContainer = getItemContainerOrThrow(item);
-			final ItemPanel itemPanel = itemContainer.getItemPanel(item);
+			final TreeMap<TrackedItem, ItemPanel> itemCollection = getCollectionForItem(item);
+			final ItemPanel itemPanel = itemCollection.get(item);
 
-			// Guaranteed to change, regardless of whether it moves containers or not.
+			// This is always updated.
 			itemPanel.refresh();
 
-			if (itemContainer == claimedItemsContainer && item.getTotalCount() == 0)
+			if (itemCollection == claimedItems && item.getTotalCount() == 0)
 			{
-				claimedItemsContainer.removeItemPanel(itemPanel);
-				unclaimedItemsContainer.addItemPanel(itemPanel);
-				claimedItemsContainer.refresh();
-				unclaimedItemsContainer.refresh();
+				claimedItems.remove(item);
+				unclaimedItems.put(item, itemPanel);
+				int sortedIndex = claimedItems.size() + unclaimedItems.headMap(item).size();
+				itemPanelContainer.remove(itemPanel);
+				itemPanelContainer.add(itemPanel, sortedIndex);
+
+				refreshTrackedItemsPanel();
 			}
-			else if (itemContainer == unclaimedItemsContainer && item.getTotalCount() > 0)
+			else if (itemCollection == unclaimedItems && item.getTotalCount() > 0)
 			{
-				claimedItemsContainer.addItemPanel(itemPanel);
-				unclaimedItemsContainer.removeItemPanel(itemPanel);
-				claimedItemsContainer.refresh();
-				unclaimedItemsContainer.refresh();
+				unclaimedItems.remove(item);
+				claimedItems.put(item, itemPanel);
+				int sortedIndex = claimedItems.headMap(item).size();
+				itemPanelContainer.remove(itemPanel);
+				itemPanelContainer.add(itemPanel, sortedIndex);
+
+				refreshTrackedItemsPanel();
 			}
 		});
 	}
 
-	private ItemPanel createItemPanel(TrackedItem item)
+	private void addItemPanel(TrackedItem item)
 	{
+		assert !(claimedItems.containsKey(item) || unclaimedItems.containsKey(item));
+
 		final AsyncBufferedImage image = itemManager.getImage(item.getItemID(), Integer.MAX_VALUE, false);
-		return new ItemPanel(clientThread, itemTracker, item, image);
+		ItemPanel itemPanel = new ItemPanel(clientThread, itemTracker, item, image);
+
+		TreeMap<TrackedItem, ItemPanel> itemCollection = item.getTotalCount() > 0 ? claimedItems : unclaimedItems;
+		itemCollection.put(item, itemPanel);
+
+		int sortedIndex = itemCollection.headMap(item).size();
+		if (itemCollection == unclaimedItems)
+		{
+			// Claimed items come first.
+			sortedIndex += claimedItems.size();
+		}
+
+		itemPanelContainer.add(itemPanel, sortedIndex);
 	}
 
-	private ItemPanelContainer getItemContainerOrThrow(TrackedItem item)
+	private TreeMap<TrackedItem, ItemPanel> getCollectionForItem(TrackedItem item)
 	{
-		if (claimedItemsContainer.containsItem(item))
+		if (claimedItems.containsKey(item))
 		{
-			return claimedItemsContainer;
+			return claimedItems;
 		}
 
-		if (unclaimedItemsContainer.containsItem(item))
-		{
-			return unclaimedItemsContainer;
-		}
+		assert unclaimedItems.containsKey(item);
+		return unclaimedItems;
+	}
 
-		throw new IllegalArgumentException("An item panel doesn't exist for item: " + item.toString());
+	private void refreshTrackedItemsPanel()
+	{
+		int claimed = claimedItems.size();
+		int total = claimed + unclaimedItems.size();
+		trackedItemsLabel.setText("Claimed (" + claimed + "/" + total + ")");
+		trackedItemsLabel.setForeground(claimed > 0 ? TEXT_COLOR_CLAIMED : TEXT_COLOR_UNCLAIMED);
+
+		trackedItemsPanel.revalidate();
+		trackedItemsPanel.repaint();
 	}
 }
