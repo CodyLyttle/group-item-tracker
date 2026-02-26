@@ -8,6 +8,7 @@ import java.awt.image.BufferedImage;
 import java.util.HashSet;
 import java.util.Set;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
@@ -24,6 +25,8 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.WidgetItemOverlay;
 
+// Singleton to lower total number of injected dependencies in main plugin class.
+@Singleton
 public class BankInterfaceManager extends WidgetItemOverlay
 {
 	private static final String BANK_SEARCH_KEYWORD = "/g";
@@ -31,6 +34,7 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	private static final String MENU_OPTION_ADD = "Add to GIM item tracker";
 	private static final String MENU_OPTION_REMOVE = "Remove from GIM item tracker";
 
+	private final ItemIdentifier itemIdentifier;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
 	private final Set<Integer> itemCache = new HashSet<>();
@@ -41,16 +45,35 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	private boolean useSearchFilter;
 
 	@Inject
-	public BankInterfaceManager(Client client, GroupItemTrackerConfig config, ItemManager itemManager, ItemTracker itemTracker)
+	public BankInterfaceManager(Client client, GroupItemTrackerConfig config, ItemIdentifier itemIdentifier, ItemManager itemManager, ItemTracker itemTracker)
 	{
 		this.client = client;
 		this.config = config;
+		this.itemIdentifier = itemIdentifier;
 		this.itemManager = itemManager;
 		this.itemTracker = itemTracker;
+		showOnBank();
+	}
+
+	public void startup()
+	{
 		useSearchFilter = config.useBankFilter();
 		useItemHighlights = config.useBankHighlights();
 		highlightColor = config.bankHighlightColor();
-		showOnBank();
+		
+		ItemContainer bankContainer = getBankContainerOrNull();
+		if (bankContainer != null)
+		{
+			refreshContainer(bankContainer);
+		}
+	}
+	
+	public void shutdown()
+	{
+		useSearchFilter = false;
+		useItemHighlights = false;
+		highlightColor = null;
+		itemCache.clear();
 	}
 
 	@Override
@@ -170,7 +193,8 @@ public class BankInterfaceManager extends WidgetItemOverlay
 					final int itemID = intStack[intStackSize - 1];
 
 					// Whether the item should be included in the search results.
-					intStack[intStackSize - 2] = itemTracker.containsItem(itemID) ? 1 : 0;
+					intStack[intStackSize - 2] = !itemIdentifier.isPlaceholder(itemID) &&
+						itemTracker.containsItem(itemID) ? 1 : 0;
 				}
 				break;
 		}

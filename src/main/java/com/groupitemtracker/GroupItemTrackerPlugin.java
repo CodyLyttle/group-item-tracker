@@ -1,6 +1,5 @@
 package com.groupitemtracker;
 
-import com.google.gson.Gson;
 import com.google.inject.Provides;
 import com.groupitemtracker.sidebar.SidebarPanel;
 import java.awt.image.BufferedImage;
@@ -27,6 +26,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 @PluginDescriptor(name = "Group Item Tracker")
 public class GroupItemTrackerPlugin extends Plugin
 {
+
 	@Inject
 	private Client client;
 
@@ -37,30 +37,23 @@ public class GroupItemTrackerPlugin extends Plugin
 	private ClientToolbar clientToolbar;
 
 	@Inject
-	private GroupItemTrackerConfig config;
-
-	@Inject
-	private ConfigManager configManager;
-
-	@Inject
 	private EventBus eventBus;
-
-	@Inject
-	private Gson gson;
 
 	@Inject
 	private ItemManager itemManager;
 
 	@Inject
-	private ItemTracker itemTracker;
+	private OverlayManager overlayManager;
 
 	@Inject
-	private OverlayManager overlayManager;
+	private BankInterfaceManager bankInterfaceManager;
+
+	@Inject
+	private ItemTracker itemTracker;
 
 	@Inject
 	private ProfileManager profileManager;
 
-	private BankInterfaceManager bankItemOverlay;
 	private NavigationButton sidebarNavButton;
 	private SidebarPanel sidebarPanel;
 	private boolean isProfileLoaded;
@@ -74,8 +67,7 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		bankItemOverlay = new BankInterfaceManager(client, config, itemManager, itemTracker);
-		overlayManager.add(bankItemOverlay);
+		overlayManager.add(bankInterfaceManager);
 
 		sidebarPanel = new SidebarPanel(clientThread, itemManager, itemTracker);
 		clientThread.invokeLater(() ->
@@ -92,9 +84,11 @@ public class GroupItemTrackerPlugin extends Plugin
 			{
 				loadProfile();
 			}
+			
+			bankInterfaceManager.startup();
 		});
 
-		eventBus.register(bankItemOverlay);
+		eventBus.register(bankInterfaceManager);
 		eventBus.register(itemTracker);
 		eventBus.register(profileManager);
 		eventBus.register(sidebarPanel);
@@ -103,13 +97,13 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
-		eventBus.unregister(bankItemOverlay);
+		eventBus.unregister(bankInterfaceManager);
 		eventBus.unregister(itemTracker);
 		eventBus.unregister(profileManager);
 		eventBus.unregister(sidebarPanel);
 
-		overlayManager.remove(bankItemOverlay);
-		bankItemOverlay = null;
+		overlayManager.remove(bankInterfaceManager);
+		bankInterfaceManager.shutdown();
 
 		unloadProfile();
 		clientToolbar.removeNavigation(sidebarNavButton);
@@ -137,12 +131,6 @@ public class GroupItemTrackerPlugin extends Plugin
 		ItemContainer bank = client.getItemContainer(InventoryID.BANK);
 		boolean isBankOpen = bank != null;
 		sidebarPanel.login(isBankOpen);
-		
-		// Force the overlay to render if we're already in the bank
-		if (isBankOpen)
-		{
-			bankItemOverlay.refreshContainer(bank);
-		}
 	}
 
 	private void unloadProfile()
