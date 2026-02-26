@@ -113,6 +113,7 @@ public class ItemTracker
 		snapshotLookup.clear();
 	}
 
+	// Would probably be better to take the item IDs directly, but this works fine.
 	public void loadProfile(ProfileManager profileManager)
 	{
 		reset();
