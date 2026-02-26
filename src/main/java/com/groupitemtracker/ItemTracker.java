@@ -20,6 +20,8 @@ import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 
+
+// Singleton because several other classes must be injected with the same instance of item tracker.
 @Singleton
 public class ItemTracker
 {
