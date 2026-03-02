@@ -16,7 +16,7 @@ public interface GroupItemTrackerConfig extends Config
 	@ConfigItem(
 		keyName = GroupItemTrackerConfig.KEY_BANK_FILTER,
 		name = "Bank search filter",
-		description = "Enter '/g' in the bank search interface to display all tracked items.")
+		description = "Filter tracked items in the bank or shared storage interface by typing '/g' in the search box.")
 	default boolean useBankFilter()
 	{
 		return true;
@@ -25,7 +25,7 @@ public interface GroupItemTrackerConfig extends Config
 	@ConfigItem(
 		keyName = GroupItemTrackerConfig.KEY_BANK_HIGHLIGHTS,
 		name = "Highlight bank items",
-		description = "Highlights all tracked items in the bank.")
+		description = "Draw outlines around tracked items in the bank and shared storage interfaces.")
 	default boolean useBankHighlights()
 	{
 		return true;
@@ -34,7 +34,7 @@ public interface GroupItemTrackerConfig extends Config
 	@ConfigItem(
 		keyName = GroupItemTrackerConfig.KEY_BANK_HIGHLIGHTS_COLOR,
 		name = "Highlight color",
-		description = "The color used to highlight tracked items in the bank.")
+		description = "The outline color of tracked items in the bank and shared storage interfaces.")
 	default Color bankHighlightColor()
 	{
 		return Color.YELLOW;
