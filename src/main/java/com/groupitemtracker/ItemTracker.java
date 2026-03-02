@@ -80,6 +80,30 @@ public class ItemTracker
 		hasPendingChanges = false;
 	}
 
+	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		final var trackedContainer = TrackedContainer.fromContainerID(event.getContainerId());
+		if (trackedContainer != null)
+		{
+			refreshContainer(trackedContainer, event.getItemContainer());
+			hasPendingChanges = true;
+		}
+	}
+
+	@Subscribe
+	public void onWidgetClosed(WidgetClosed event)
+	{
+		if (event.getGroupId() == InterfaceID.BANKMAIN)
+		{
+			bankClosedLastTick = true;
+		}
+		else if (event.getGroupId() == InterfaceID.SHARED_BANK)
+		{
+			sharedBankClosedLastTick = true;
+		}
+	}
+
 	public Collection<TrackedItem> getItems()
 	{
 		return Collections.unmodifiableCollection(itemLookup.values());
@@ -136,30 +160,6 @@ public class ItemTracker
 		hasPendingChanges = false;
 		itemLookup.clear();
 		snapshotLookup.clear();
-	}
-
-	@Subscribe
-	public void onItemContainerChanged(ItemContainerChanged event)
-	{
-		final var trackedContainer = TrackedContainer.fromContainerID(event.getContainerId());
-		if (trackedContainer != null)
-		{
-			refreshContainer(trackedContainer, event.getItemContainer());
-			hasPendingChanges = true;
-		}
-	}
-
-	@Subscribe
-	public void onWidgetClosed(WidgetClosed event)
-	{
-		if (event.getGroupId() == InterfaceID.BANKMAIN)
-		{
-			bankClosedLastTick = true;
-		}
-		else if (event.getGroupId() == InterfaceID.SHARED_BANK)
-		{
-			sharedBankClosedLastTick = true;
-		}
 	}
 
 	private TrackedItem createTrackedItem(int itemID)

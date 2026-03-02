@@ -55,27 +55,6 @@ public class BankInterfaceManager extends WidgetItemOverlay
 		showOnBank();
 	}
 
-	public void startup()
-	{
-		useSearchFilter = config.useBankFilter();
-		useItemHighlights = config.useBankHighlights();
-		highlightColor = config.bankHighlightColor();
-		
-		ItemContainer bankContainer = getBankContainerOrNull();
-		if (bankContainer != null)
-		{
-			refreshContainer(bankContainer);
-		}
-	}
-	
-	public void shutdown()
-	{
-		useSearchFilter = false;
-		useItemHighlights = false;
-		highlightColor = null;
-		itemCache.clear();
-	}
-
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
@@ -121,7 +100,7 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	@Subscribe
 	private void onItemRemoved(ItemRemoved event)
 	{
-		ItemContainer bankContainer = getBankContainerOrNull();
+		final ItemContainer bankContainer = getBankContainerOrNull();
 		if (bankContainer != null)
 		{
 			refreshContainer(bankContainer);
@@ -131,17 +110,17 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	@Subscribe
 	private void onMenuEntryAdded(MenuEntryAdded event)
 	{
-		int interfaceID = event.getActionParam1();
-		boolean isBank = (interfaceID == InterfaceID.Bankmain.ITEMS || interfaceID == InterfaceID.SharedBank.ITEMS);
+		final int interfaceID = event.getActionParam1();
+		final boolean isBank = (interfaceID == InterfaceID.Bankmain.ITEMS || interfaceID == InterfaceID.SharedBank.ITEMS);
 
 		// Insert tracked item menu option after the 'Examine' menu option.
 		if (isBank && event.getOption().equals("Examine"))
 		{
-			int itemID = client.getWidget(interfaceID).getChild(event.getActionParam0()).getItemId();
-			boolean isTracked = itemTracker.containsItem(itemID);
+			final int itemID = client.getWidget(interfaceID).getChild(event.getActionParam0()).getItemId();
+			final boolean isTracked = itemTracker.containsItem(itemID);
 
-			Menu menu = client.getMenu();
-			MenuEntry entry = menu.createMenuEntry(1);
+			final Menu menu = client.getMenu();
+			final MenuEntry entry = menu.createMenuEntry(1);
 			entry.setItemId(itemID);
 			entry.setOption(isTracked ? MENU_OPTION_REMOVE : MENU_OPTION_ADD);
 			entry.onClick(e ->
@@ -200,14 +179,35 @@ public class BankInterfaceManager extends WidgetItemOverlay
 		}
 	}
 
+	public void startup()
+	{
+		useSearchFilter = config.useBankFilter();
+		useItemHighlights = config.useBankHighlights();
+		highlightColor = config.bankHighlightColor();
+
+		final ItemContainer bankContainer = getBankContainerOrNull();
+		if (bankContainer != null)
+		{
+			refreshContainer(bankContainer);
+		}
+	}
+
+	public void shutdown()
+	{
+		useSearchFilter = false;
+		useItemHighlights = false;
+		highlightColor = null;
+		itemCache.clear();
+	}
+
 	private ItemContainer getBankContainerOrNull()
 	{
-		ItemContainer bankContainer = client.getItemContainer(InventoryID.BANK);
+		final ItemContainer bankContainer = client.getItemContainer(InventoryID.BANK);
 		return bankContainer != null ? bankContainer : client.getItemContainer(InventoryID.INV_GROUP_TEMP);
 	}
 
 	// Profiled: < 1ms.
-	public void refreshContainer(ItemContainer bankContainer)
+	private void refreshContainer(ItemContainer bankContainer)
 	{
 		assert bankContainer.getId() == InventoryID.BANK || bankContainer.getId() == InventoryID.INV_GROUP_TEMP;
 

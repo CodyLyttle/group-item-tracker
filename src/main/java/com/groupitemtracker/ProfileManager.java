@@ -36,6 +36,12 @@ public class ProfileManager
 		writeTrackedItems();
 	}
 
+	public int[] readTrackedItemIDs()
+	{
+		final String json = configManager.getRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS);
+		return json == null ? new int[0] : gson.fromJson(json, int[].class);
+	}
+
 	private void writeTrackedItems()
 	{
 		final List<Integer> itemIDs = itemTracker.getItems().stream()
@@ -44,11 +50,5 @@ public class ProfileManager
 
 		final String json = gson.toJson(itemIDs);
 		configManager.setRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS, json);
-	}
-
-	public int[] readTrackedItemIDs()
-	{
-		final String json = configManager.getRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS);
-		return json == null ? new int[0] : gson.fromJson(json, int[].class);
 	}
 }

@@ -1,16 +1,13 @@
 package com.groupitemtracker;
 
 import java.util.EnumMap;
-import lombok.Getter;
 
 public class TrackedItem
 {
 	private final EnumMap<TrackedContainer, Integer> containerCounters;
 
-	@Getter
 	private final int itemID;
 
-	@Getter
 	private final String itemName;
 
 	public TrackedItem(int baseID, String itemName)
@@ -25,28 +22,14 @@ public class TrackedItem
 		}
 	}
 
-	public void resetContainerCounter(TrackedContainer container)
+	public int getItemID()
 	{
-		assert containerCounters.containsKey(container);
-
-		containerCounters.put(container, 0);
+		return itemID;
 	}
 
-	public void increaseContainerCounter(TrackedContainer container, int value)
+	public String getItemName()
 	{
-		assert value > 0;
-		assert containerCounters.containsKey(container);
-
-		final int existingValue = containerCounters.get(container);
-		containerCounters.put(container, existingValue + value);
-	}
-	
-	public void setContainerCounter(TrackedContainer container,  int value)
-	{
-		assert value >= 0;
-		assert containerCounters.containsKey(container);
-		
-		containerCounters.put(container, value);
+		return itemName;
 	}
 
 	public int getContainerCount(TrackedContainer container)
@@ -64,14 +47,38 @@ public class TrackedItem
 
 		return sum;
 	}
-	
-	public boolean matchesSnapshot(EnumMap<TrackedContainer, Integer> snapshot)
+
+	public void increaseContainerCounter(TrackedContainer container, int value)
 	{
-		return snapshot.equals(containerCounters);
+		assert value > 0;
+		assert containerCounters.containsKey(container);
+
+		final int existingValue = containerCounters.get(container);
+		containerCounters.put(container, existingValue + value);
+	}
+
+	public void setContainerCounter(TrackedContainer container, int value)
+	{
+		assert value >= 0;
+		assert containerCounters.containsKey(container);
+
+		containerCounters.put(container, value);
+	}
+
+	public void resetContainerCounter(TrackedContainer container)
+	{
+		assert containerCounters.containsKey(container);
+
+		containerCounters.put(container, 0);
 	}
 
 	public EnumMap<TrackedContainer, Integer> createSnapshot()
 	{
 		return new EnumMap<>(containerCounters);
+	}
+
+	public boolean matchesSnapshot(EnumMap<TrackedContainer, Integer> snapshot)
+	{
+		return snapshot.equals(containerCounters);
 	}
 }

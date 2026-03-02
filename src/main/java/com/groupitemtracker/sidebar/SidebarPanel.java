@@ -52,7 +52,7 @@ public class SidebarPanel extends PluginPanel
 	{
 		// Disable scrolling of the top level panel.
 		super(false);
-		
+
 		this.clientThread = clientThread;
 		this.itemManager = itemManager;
 		this.itemTracker = itemTracker;
@@ -105,44 +105,6 @@ public class SidebarPanel extends PluginPanel
 		label.setFont(font);
 		label.setHorizontalAlignment(SwingConstants.CENTER);
 		return label;
-	}
-
-	public void login(boolean isBankOpen)
-	{
-		SwingUtilities.invokeLater(() ->
-		{
-			if (isBankOpen)
-			{
-				isSyncedWithBank = true;
-				hintLabel.setText(TUTORIAL_HINT_LABEL);
-			}
-			else
-			{
-				isSyncedWithBank = false;
-				hintLabel.setText(INITIAL_SYNC_HINT_LABEL);
-			}
-
-			for (TrackedItem item : itemTracker.getItems())
-			{
-				addItemPanel(item);
-			}
-
-			itemsPanel.setVisible(true);
-			refreshTrackedItemsPanel();
-		});
-	}
-
-	public void logout()
-	{
-		SwingUtilities.invokeLater(() ->
-		{
-			hintLabel.setText(LOGIN_HINT_LABEL);
-
-			claimedItems.clear();
-			unclaimedItems.clear();
-			itemsGrid.removeAll();
-			itemsPanel.setVisible(false);
-		});
 	}
 
 	@Subscribe
@@ -211,6 +173,45 @@ public class SidebarPanel extends PluginPanel
 				itemsGrid.add(trackedItemPanel, sortedIndex);
 				refreshTrackedItemsPanel();
 			}
+		});
+	}
+
+
+	public void login(boolean isBankOpen)
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			if (isBankOpen)
+			{
+				isSyncedWithBank = true;
+				hintLabel.setText(TUTORIAL_HINT_LABEL);
+			}
+			else
+			{
+				isSyncedWithBank = false;
+				hintLabel.setText(INITIAL_SYNC_HINT_LABEL);
+			}
+
+			for (TrackedItem item : itemTracker.getItems())
+			{
+				addItemPanel(item);
+			}
+
+			itemsPanel.setVisible(true);
+			refreshTrackedItemsPanel();
+		});
+	}
+
+	public void logout()
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			hintLabel.setText(LOGIN_HINT_LABEL);
+
+			claimedItems.clear();
+			unclaimedItems.clear();
+			itemsGrid.removeAll();
+			itemsPanel.setVisible(false);
 		});
 	}
 
