@@ -30,9 +30,9 @@ import net.runelite.client.ui.overlay.WidgetItemOverlay;
 public class BankInterfaceManager extends WidgetItemOverlay
 {
 	private static final String BANK_SEARCH_KEYWORD = "/g";
-	private static final String BANK_SEARCH_KEYWORD_HINT = "<br>" + "Use " + BANK_SEARCH_KEYWORD + " to filter by group item tracker";
-	private static final String MENU_OPTION_ADD = "Add to GIM item tracker";
-	private static final String MENU_OPTION_REMOVE = "Remove from GIM item tracker";
+	private static final String BANK_SEARCH_KEYWORD_HINT = "<br>" + "Type " + BANK_SEARCH_KEYWORD + " to show tracked items";
+	private static final String MENU_OPTION_ADD = "Start-tracking";
+	private static final String MENU_OPTION_REMOVE = "Stop-tracking";
 
 	private final ItemIdentifier itemIdentifier;
 	private final ItemManager itemManager;
@@ -113,16 +113,20 @@ public class BankInterfaceManager extends WidgetItemOverlay
 		final int interfaceID = event.getActionParam1();
 		final boolean isBank = (interfaceID == InterfaceID.Bankmain.ITEMS || interfaceID == InterfaceID.SharedBank.ITEMS);
 
-		// Insert tracked item menu option after the 'Examine' menu option.
+
+		// Target 'Examine' option to ensure we're clicking an item, also prevents adding our entry more than once.
 		if (isBank && event.getOption().equals("Examine"))
 		{
 			final int itemID = client.getWidget(interfaceID).getChild(event.getActionParam0()).getItemId();
 			final boolean isTracked = itemTracker.containsItem(itemID);
-
+			
+			final int indexBeforeExamine = 2;
 			final Menu menu = client.getMenu();
-			final MenuEntry entry = menu.createMenuEntry(1);
+			final MenuEntry entry = menu.createMenuEntry(indexBeforeExamine);
 			entry.setItemId(itemID);
 			entry.setOption(isTracked ? MENU_OPTION_REMOVE : MENU_OPTION_ADD);
+			entry.setTarget(event.getTarget());
+			
 			entry.onClick(e ->
 			{
 				if (isTracked)
