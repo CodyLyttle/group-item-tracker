@@ -32,8 +32,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
-// ItemTracker contains our core logic and is the most likely cause of regressions.
-// Because of this, I've opted for an in-depth unit test suite.
+// In depth test suite for core logic.
 @RunWith(MockitoJUnitRunner.class)
 public class ItemTrackerTests
 {
@@ -314,37 +313,15 @@ public class ItemTrackerTests
 	}
 
 	@Test
-	public void loadProfile_clearsExistingState()
-	{
-		var profileManager = mock(ProfileManager.class);
-		when(profileManager.readTrackedItemIDs()).thenReturn(new int[]{});
-		// Add and update an item, but leave the update pending by not calling onGameTick.
-		TrackedItem item = sut.addItem(1);
-		testBuilder.selectItem(item).inBank(1).invokeContainerChangedEvent(TrackedContainer.BANK);
-		reset(eventBus);
-
-		// Clears items.
-		sut.loadProfile(profileManager);
-		Assert.assertEquals(0, sut.getItems().size());
-		Assert.assertFalse(sut.containsItem(item.getItemID()));
-
-		// Clears pending state updates.
-		sut.onGameTick(new GameTick());
-		verifyNoMoreInteractions(eventBus);
-	}
-
-	@Test
-	public void loadProfile_initializesContainerCounters()
+	public void addItems_initializesContainerCounters()
 	{
 		final int firstID = 1;
 		final int secondID = 2;
-		var profileManager = mock(ProfileManager.class);
-		when(profileManager.readTrackedItemIDs()).thenReturn(new int[]{firstID, secondID});
 		testBuilder.selectItemByID(firstID).inBank(1).inEquipment(2).inInventory(3)
 			.selectItemByID(secondID).inEquipment(2)
 			.invokeContainerChangedEventAllContainers();
 
-		sut.loadProfile(profileManager);
+		sut.addItems(new int[]{firstID, secondID});
 
 		testBuilder.assertStateOfTrackedItems(sut.getItems().toArray(new TrackedItem[]{}));
 	}
@@ -432,7 +409,7 @@ public class ItemTrackerTests
 		Assert.assertEquals(1, secondItem.getContainerCount(TrackedContainer.BANK));
 		verifyItemUpdated(firstItem, 1);
 		verifyItemUpdated(secondItem, 1);
-	}	
+	}
 
 	private void verifyItemUpdated(TrackedItem expectedItem, int expectedTimes)
 	{

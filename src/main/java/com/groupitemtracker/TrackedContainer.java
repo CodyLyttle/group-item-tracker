@@ -8,20 +8,20 @@ public enum TrackedContainer
 	EQUIPMENT(InventoryID.WORN, "Equipment"),
 	INVENTORY(InventoryID.INV, "Inventory");
 
-	public final int itemContainerID;
+	public final int containerID;
 	public final String description;
 
-	TrackedContainer(int itemContainerID, String description)
+	TrackedContainer(int containerID, String description)
 	{
-		this.itemContainerID = itemContainerID;
+		this.containerID = containerID;
 		this.description = description;
 	}
 
-	public static TrackedContainer fromItemContainerID(int itemContainerID)
+	public static TrackedContainer fromContainerID(int containerID)
 	{
 		for (var value : TrackedContainer.values())
 		{
-			if (value.itemContainerID == itemContainerID)
+			if (value.containerID == containerID)
 			{
 				return value;
 			}

@@ -21,7 +21,7 @@ import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 
 
-// Singleton because several other classes must be injected with the same instance of item tracker.
+// Singleton because several classes must be injected with the same instance of item tracker.
 @Singleton
 public class ItemTracker
 {
@@ -49,7 +49,7 @@ public class ItemTracker
 		{
 			for (TrackedItem item : itemLookup.values())
 			{
-				EnumMap<TrackedContainer, Integer> snapshot = snapshotLookup.get(item);
+				final EnumMap<TrackedContainer, Integer> snapshot = snapshotLookup.get(item);
 				if (item.matchesSnapshot(snapshot))
 				{
 					continue;
@@ -80,19 +80,6 @@ public class ItemTracker
 		hasPendingChanges = false;
 	}
 
-	@Subscribe
-	public void onWidgetClosed(WidgetClosed event)
-	{
-		if (event.getGroupId() == InterfaceID.BANKMAIN)
-		{
-			bankClosedLastTick = true;
-		}
-		else if (event.getGroupId() == InterfaceID.SHARED_BANK)
-		{
-			sharedBankClosedLastTick = true;
-		}
-	}
-
 	public Collection<TrackedItem> getItems()
 	{
 		return Collections.unmodifiableCollection(itemLookup.values());
@@ -104,21 +91,18 @@ public class ItemTracker
 		return itemLookup.containsKey(baseID);
 	}
 
-	public void reset()
+	public TrackedItem addItem(int itemID)
 	{
-		bankClosedLastTick = false;
-		sharedBankClosedLastTick = false;
-		hasPendingChanges = false;
-		itemLookup.clear();
-		snapshotLookup.clear();
+		final TrackedItem trackedItem = createTrackedItem(itemID);
+		refreshAvailableContainers();
+		snapshotLookup.put(trackedItem, trackedItem.createSnapshot());
+		eventBus.post(new ItemAdded(trackedItem));
+		return trackedItem;
 	}
 
-	// Would probably be better to take the item IDs directly, but this works fine.
-	public void loadProfile(ProfileManager profileManager)
+	public void addItems(int[] trackedItemIDs)
 	{
-		reset();
-
-		for (int itemID : profileManager.readTrackedItemIDs())
+		for (int itemID : trackedItemIDs)
 		{
 			createTrackedItem(itemID);
 		}
@@ -128,6 +112,53 @@ public class ItemTracker
 		for (TrackedItem item : itemLookup.values())
 		{
 			snapshotLookup.put(item, item.createSnapshot());
+		}
+	}
+
+	public void removeItem(int itemID)
+	{
+		final int baseID = itemIdentifier.getBaseID(itemID);
+		final TrackedItem removedItem = itemLookup.remove(baseID);
+		if (removedItem == null)
+		{
+			final String itemName = itemIdentifier.getName(itemID);
+			throw new IllegalArgumentException("Cannot remove untracked item: " + itemName);
+		}
+
+		snapshotLookup.remove(removedItem);
+		eventBus.post(new ItemRemoved(removedItem));
+	}
+
+	public void reset()
+	{
+		bankClosedLastTick = false;
+		sharedBankClosedLastTick = false;
+		hasPendingChanges = false;
+		itemLookup.clear();
+		snapshotLookup.clear();
+	}
+
+	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		final var trackedContainer = TrackedContainer.fromContainerID(event.getContainerId());
+		if (trackedContainer != null)
+		{
+			refreshContainer(trackedContainer, event.getItemContainer());
+			hasPendingChanges = true;
+		}
+	}
+
+	@Subscribe
+	public void onWidgetClosed(WidgetClosed event)
+	{
+		if (event.getGroupId() == InterfaceID.BANKMAIN)
+		{
+			bankClosedLastTick = true;
+		}
+		else if (event.getGroupId() == InterfaceID.SHARED_BANK)
+		{
+			sharedBankClosedLastTick = true;
 		}
 	}
 
@@ -144,41 +175,6 @@ public class ItemTracker
 		final var trackedItem = new TrackedItem(baseID, name);
 		itemLookup.put(baseID, trackedItem);
 		return trackedItem;
-	}
-
-	public TrackedItem addItem(int itemID)
-	{
-		TrackedItem trackedItem = createTrackedItem(itemID);
-		refreshAvailableContainers();
-		snapshotLookup.put(trackedItem, trackedItem.createSnapshot());
-		eventBus.post(new ItemAdded(trackedItem));
-		return trackedItem;
-	}
-
-	public TrackedItem removeItem(int itemID)
-	{
-		final int baseID = itemIdentifier.getBaseID(itemID);
-		final TrackedItem removedItem = itemLookup.remove(baseID);
-		if (removedItem == null)
-		{
-			final String itemName = itemIdentifier.getName(itemID);
-			throw new IllegalArgumentException("Cannot remove untracked item: " + itemName);
-		}
-
-		snapshotLookup.remove(removedItem);
-		eventBus.post(new ItemRemoved(removedItem));
-		return removedItem;
-	}
-
-	@Subscribe
-	public void onItemContainerChanged(ItemContainerChanged event)
-	{
-		var trackedContainer = TrackedContainer.fromItemContainerID(event.getContainerId());
-		if (trackedContainer != null)
-		{
-			refreshContainer(trackedContainer, event.getItemContainer());
-			hasPendingChanges = true;
-		}
 	}
 
 	private void refreshContainer(TrackedContainer trackedContainer, ItemContainer itemContainer)
@@ -212,7 +208,7 @@ public class ItemTracker
 	{
 		for (var trackedContainer : TrackedContainer.values())
 		{
-			ItemContainer itemContainer = client.getItemContainer(trackedContainer.itemContainerID);
+			final var itemContainer = client.getItemContainer(trackedContainer.containerID);
 			if (itemContainer != null)
 			{
 				refreshContainer(trackedContainer, itemContainer);

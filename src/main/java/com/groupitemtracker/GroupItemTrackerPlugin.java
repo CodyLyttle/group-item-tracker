@@ -68,7 +68,6 @@ public class GroupItemTrackerPlugin extends Plugin
 	protected void startUp()
 	{
 		overlayManager.add(bankInterfaceManager);
-
 		sidebarPanel = new SidebarPanel(clientThread, itemManager, itemTracker);
 		clientThread.invokeLater(() ->
 		{
@@ -84,7 +83,7 @@ public class GroupItemTrackerPlugin extends Plugin
 			{
 				loadProfile();
 			}
-			
+
 			bankInterfaceManager.startup();
 		});
 
@@ -125,12 +124,14 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	private void loadProfile()
 	{
-		isProfileLoaded = true;
-		itemTracker.loadProfile(profileManager);
+		final int[] trackedItemIDs = profileManager.readTrackedItemIDs();
+		itemTracker.addItems(trackedItemIDs);
 
-		ItemContainer bank = client.getItemContainer(InventoryID.BANK);
-		boolean isBankOpen = bank != null;
+		final ItemContainer bank = client.getItemContainer(InventoryID.BANK);
+		final boolean isBankOpen = bank != null;
 		sidebarPanel.login(isBankOpen);
+		
+		isProfileLoaded = true;
 	}
 
 	private void unloadProfile()

@@ -5,9 +5,7 @@ import com.groupitemtracker.TrackedContainer;
 import com.groupitemtracker.TrackedItem;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.events.ItemContainerChanged;
@@ -19,33 +17,15 @@ public class TrackedContainerTestBuilder
 {
 	private final ItemTracker sut;
 	private int selectedItemID = -1;
-	private final Set<TrackedContainer> availableContainers = new HashSet<>();
-	private final EnumMap<TrackedContainer, Map<Integer, Item>> containerLookup =
-		new EnumMap<>(TrackedContainer.class);
+	private final EnumMap<TrackedContainer, Map<Integer, Item>> fakeContainers = new EnumMap<>(TrackedContainer.class);
 
 	public TrackedContainerTestBuilder(ItemTracker sut)
 	{
 		this.sut = sut;
-		for (TrackedContainer container : TrackedContainer.values())
+		for (var container : TrackedContainer.values())
 		{
-			availableContainers.add(container);
-			containerLookup.put(container, new HashMap<>());
+			fakeContainers.put(container, new HashMap<>());
 		}
-	}
-
-	// Available containers return their contents, unavailable containers return Optional.Empty().
-	public TrackedContainerTestBuilder setContainerAvailability(TrackedContainer container, boolean isAvailable)
-	{
-		if (isAvailable)
-		{
-			availableContainers.add(container);
-		}
-		else
-		{
-			availableContainers.remove(container);
-		}
-
-		return this;
 	}
 
 	public TrackedContainerTestBuilder selectItemByID(int itemId)
@@ -79,44 +59,44 @@ public class TrackedContainerTestBuilder
 		return this;
 	}
 
-	private void setSelectedItemCount(TrackedContainer container, int quantity)
+	private void setSelectedItemCount(TrackedContainer trackedContainer, int quantity)
 	{
 		assert selectedItemID >= 0;
 
-		final var item = new Item(selectedItemID, quantity);
-		containerLookup.get(container).put(selectedItemID, item);
+		final var fakeItem = new Item(selectedItemID, quantity);
+		fakeContainers.get(trackedContainer).put(selectedItemID, fakeItem);
 	}
 
-	public TrackedContainerTestBuilder removeItem(TrackedContainer container)
+	public TrackedContainerTestBuilder removeItem(TrackedContainer trackedContainer)
 	{
 		assert selectedItemID >= 0;
 
-		Map<Integer, Item> containerItems = containerLookup.get(container);
-		containerItems.remove(selectedItemID);
+		final Map<Integer, Item> fakeItems = fakeContainers.get(trackedContainer);
+		fakeItems.remove(selectedItemID);
 		return this;
 	}
 
-	public ItemContainer getItemContainer(int itemContainerID)
+	public ItemContainer getItemContainer(int containerID)
 	{
-		var trackedContainer = TrackedContainer.fromItemContainerID(itemContainerID);
-		if (trackedContainer == null || !availableContainers.contains(trackedContainer))
+		var trackedContainer = TrackedContainer.fromContainerID(containerID);
+		if (trackedContainer == null)
 		{
 			return null;
 		}
 
-		final var itemContainer = mock(ItemContainer.class);
-		when(itemContainer.getId()).thenReturn(itemContainerID);
-		when(itemContainer.getItems())
-			.thenAnswer(invocation -> containerLookup.get(trackedContainer).values()
+		final var fakeContainer = mock(ItemContainer.class);
+		when(fakeContainer.getId()).thenReturn(containerID);
+		when(fakeContainer.getItems())
+			.thenAnswer(invocation -> fakeContainers.get(trackedContainer).values()
 				.toArray(new Item[0]));
 
-		return itemContainer;
+		return fakeContainer;
 	}
 
-	public TrackedContainerTestBuilder invokeContainerChangedEvent(TrackedContainer container)
+	public TrackedContainerTestBuilder invokeContainerChangedEvent(TrackedContainer trackedContainer)
 	{
-		ItemContainer itemContainer = getItemContainer(container.itemContainerID);
-		final var event = new ItemContainerChanged(itemContainer.getId(), itemContainer);
+		ItemContainer fakeContainer = getItemContainer(trackedContainer.containerID);
+		final var event = new ItemContainerChanged(fakeContainer.getId(), fakeContainer);
 		sut.onItemContainerChanged(event);
 
 		return this;
@@ -124,9 +104,9 @@ public class TrackedContainerTestBuilder
 
 	public TrackedContainerTestBuilder invokeContainerChangedEventAllContainers()
 	{
-		for (var container : TrackedContainer.values())
+		for (var trackedContainer : TrackedContainer.values())
 		{
-			invokeContainerChangedEvent(container);
+			invokeContainerChangedEvent(trackedContainer);
 		}
 
 		return this;
@@ -134,22 +114,25 @@ public class TrackedContainerTestBuilder
 
 	public TrackedContainerTestBuilder assertStateOfTrackedItems(TrackedItem... trackedItems)
 	{
-		for (TrackedItem trackedItem : trackedItems)
+		for (TrackedItem item : trackedItems)
 		{
-			int expectedSum = 0;
-			for (var entry : containerLookup.entrySet())
-			{
-				TrackedContainer container = entry.getKey();
-				Map<Integer, Item> containerItemLookup = entry.getValue();
+			int fakeSum = 0;
+			int realSum = item.getTotalCount();
+			int itemID = item.getItemID();
 
-				Item item = containerItemLookup.get(trackedItem.getItemID());
-				int expectedCount = item != null ? item.getQuantity() : 0;
-				int actualCount = trackedItem.getContainerCount(container);
-				Assert.assertEquals(expectedCount, trackedItem.getContainerCount(container));
-				expectedSum += actualCount;
+			for (var entry : fakeContainers.entrySet())
+			{
+				final TrackedContainer container = entry.getKey();
+				final Map<Integer, Item> fakeContainer = entry.getValue();
+				final Item fakeItem = fakeContainer.get(itemID);
+
+				final int fakeCount = fakeItem != null ? fakeItem.getQuantity() : 0;
+				final int realCount = item.getContainerCount(container);
+				Assert.assertEquals(fakeCount, realCount);
+				fakeSum += fakeCount;
 			}
 
-			Assert.assertEquals(expectedSum, trackedItem.getTotalCount());
+			Assert.assertEquals(fakeSum, realSum);
 		}
 
 		return this;
