@@ -26,7 +26,7 @@ import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.SwingUtil;
 
-public class TrackedItemPanel extends JPanel 
+public class TrackedItemPanel extends JPanel
 {
 	private static final ImageIcon DELETE_ICON;
 	private static final ImageIcon DELETE_ICON_DIMMED;
@@ -95,7 +95,16 @@ public class TrackedItemPanel extends JPanel
 		infoPanel.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 0));
 		infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
 		infoPanel.setOpaque(false);
-		nameLabel = new JShadowedLabel(item.getItemName());
+		nameLabel = new JShadowedLabel(item.getItemName())
+		{
+			// Fixes an issue where long names resized the parent panel, pushing all delete buttons offscreen.
+			@Override
+			public Dimension getPreferredSize()
+			{
+				final Dimension dim = super.getPreferredSize();
+				return new Dimension(0, dim.height);
+			}
+		};
 		nameLabel.setFont(FontManager.getRunescapeFont());
 		locationsLabel = new JLabel();
 		locationsLabel.setFont(FontManager.getRunescapeSmallFont());
