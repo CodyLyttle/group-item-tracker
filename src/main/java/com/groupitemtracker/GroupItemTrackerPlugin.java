@@ -7,10 +7,7 @@ import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
-import net.runelite.api.ItemContainer;
-import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.events.GameStateChanged;
-import net.runelite.api.gameval.ItemID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
@@ -21,12 +18,12 @@ import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.ImageUtil;
 
 @Slf4j
 @PluginDescriptor(name = "Group Item Tracker")
 public class GroupItemTrackerPlugin extends Plugin
 {
-
 	@Inject
 	private Client client;
 
@@ -54,7 +51,7 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Inject
 	private ProfileManager profileManager;
 
-	private NavigationButton sidebarNavButton;
+	private NavigationButton navButton;
 	private SidebarPanel sidebarPanel;
 	private boolean isProfileLoaded;
 
@@ -67,30 +64,30 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		overlayManager.add(bankInterfaceManager);
+		// Icon from cache dump: sprite 3553.
 		sidebarPanel = new SidebarPanel(clientThread, itemManager, itemTracker);
-		clientThread.invokeLater(() ->
-		{
-			final BufferedImage sidebarIcon = itemManager.getImage(ItemID.LEAGUE_BANKERS_NOTE);
-			sidebarNavButton = NavigationButton.builder()
-				.tooltip("Group Item Tracker")
-				.icon(sidebarIcon)
-				.panel(sidebarPanel)
-				.build();
-			clientToolbar.addNavigation(sidebarNavButton);
+		BufferedImage sidebarIcon = ImageUtil.loadImageResource(getClass(), "sidebar_icon.png");
+		navButton = NavigationButton.builder()
+			.tooltip("Group Item Tracker")
+			.icon(sidebarIcon)
+			.panel(sidebarPanel)
+			.build();
 
-			if (client.getGameState() == GameState.LOGGED_IN)
-			{
-				loadProfile();
-			}
-
-			bankInterfaceManager.startup();
-		});
-
+		clientToolbar.addNavigation(navButton);
+		overlayManager.add(bankInterfaceManager);
 		eventBus.register(bankInterfaceManager);
 		eventBus.register(itemTracker);
 		eventBus.register(profileManager);
 		eventBus.register(sidebarPanel);
+
+		clientThread.invokeLater(() ->
+		{
+			bankInterfaceManager.startup();
+			if (client.getGameState() == GameState.LOGGED_IN)
+			{
+				loadProfile();
+			}
+		});
 	}
 
 	@Override
@@ -102,11 +99,13 @@ public class GroupItemTrackerPlugin extends Plugin
 		eventBus.unregister(sidebarPanel);
 
 		overlayManager.remove(bankInterfaceManager);
-		bankInterfaceManager.shutdown();
+		clientToolbar.removeNavigation(navButton);
 
-		unloadProfile();
-		clientToolbar.removeNavigation(sidebarNavButton);
-		sidebarPanel = null;
+		clientThread.invokeLater(() -> {
+			bankInterfaceManager.shutdown();
+			unloadProfile();
+			sidebarPanel = null;
+		});
 	}
 
 	@Subscribe
@@ -124,13 +123,12 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	private void loadProfile()
 	{
-		final int[] trackedItemIDs = profileManager.readTrackedItemIDs();
-		itemTracker.addItems(trackedItemIDs);
+		int[] trackedItemIDs = profileManager.readTrackedItemIDs();
 
-		final ItemContainer bank = client.getItemContainer(InventoryID.BANK);
-		final boolean isBankOpen = bank != null;
-		sidebarPanel.login(isBankOpen);
-		
+		// login before loadItems to preserve the correct sidebar hint order in the event that the bank is already open.
+		// The SyncWithBank message indirectly updates the hint message, which login would then overwrite.
+		sidebarPanel.login();
+		itemTracker.loadItems(trackedItemIDs);
 		isProfileLoaded = true;
 	}
 

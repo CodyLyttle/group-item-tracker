@@ -8,11 +8,13 @@ public enum TrackedContainer
 	EQUIPMENT(InventoryID.WORN, "Equipment"),
 	INVENTORY(InventoryID.INV, "Inventory");
 
+	public final int mask;
 	public final int containerID;
 	public final String description;
 
 	TrackedContainer(int containerID, String description)
 	{
+		this.mask = 1 << ordinal();
 		this.containerID = containerID;
 		this.description = description;
 	}

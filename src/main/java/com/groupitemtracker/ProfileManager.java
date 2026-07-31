@@ -1,8 +1,6 @@
 package com.groupitemtracker;
 
 import com.google.gson.Gson;
-import com.groupitemtracker.events.ItemAdded;
-import com.groupitemtracker.events.ItemRemoved;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -25,30 +23,30 @@ public class ProfileManager
 	}
 
 	@Subscribe
-	private void onItemAdded(ItemAdded event)
+	private void onItemAdded(ItemTracker.ItemAdded event)
 	{
 		writeTrackedItems();
 	}
 
 	@Subscribe
-	private void onItemRemoved(ItemRemoved event)
+	private void onItemRemoved(ItemTracker.ItemRemoved event)
 	{
 		writeTrackedItems();
 	}
 
 	public int[] readTrackedItemIDs()
 	{
-		final String json = configManager.getRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS);
+		String json = configManager.getRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS);
 		return json == null ? new int[0] : gson.fromJson(json, int[].class);
 	}
 
 	private void writeTrackedItems()
 	{
-		final List<Integer> itemIDs = itemTracker.getItems().stream()
-			.map(TrackedItem::getItemID)
+		List<Integer> itemIDs = itemTracker.getItems().stream()
+			.map(item -> item.itemID)
 			.collect(Collectors.toList());
 
-		final String json = gson.toJson(itemIDs);
+		String json = gson.toJson(itemIDs);
 		configManager.setRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS, json);
 	}
 }

@@ -1,15 +1,9 @@
 package com.groupitemtracker;
 
-import com.groupitemtracker.events.ItemAdded;
-import com.groupitemtracker.events.ItemRemoved;
-import com.groupitemtracker.events.ItemUpdated;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.Data;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
@@ -20,79 +14,159 @@ import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 
-
-// Singleton because several classes must be injected with the same instance of item tracker.
 @Singleton
 public class ItemTracker
 {
+	@Data
+	public static final class ItemAdded
+	{
+		private final TrackedItemSnapshot item;
+	}
+
+	@Data
+	public static final class ItemRemoved
+	{
+		private final TrackedItemSnapshot item;
+	}
+
+	@Data
+	public static final class ItemsUpdated
+	{
+		private final Collection<TrackedItemSnapshot> items;
+	}
+
+	@Data
+	public static final class Invalidated
+	{
+		private final Collection<TrackedItemSnapshot> items;
+	}
+
+	public static final class SyncedWithBank
+	{
+		// Signal message, no data.
+	}
+
 	private final Client client;
 	private final EventBus eventBus;
-	private final ItemIdentifier itemIdentifier;
-	private final Map<Integer, TrackedItem> itemLookup = new HashMap<>();
-	private final Map<TrackedItem, EnumMap<TrackedContainer, Integer>> snapshotLookup = new HashMap<>();
+	private final ItemIdentifier identifier;
+	private final Map<Integer, TrackedItem> items = new HashMap<>();
+	private final Map<Integer, TrackedItemSnapshot> snapshots = new HashMap<>();
 	private boolean bankClosedLastTick = false;
 	private boolean sharedBankClosedLastTick = false;
-	private boolean hasPendingChanges = false;
+	private boolean containerHasChanged = false;
+	private boolean syncedWithBank = false;
 
 	@Inject
-	public ItemTracker(Client client, EventBus eventBus, ItemIdentifier itemIdentifier)
+	public ItemTracker(Client client, EventBus eventBus, ItemIdentifier identifier)
 	{
 		this.client = client;
 		this.eventBus = eventBus;
-		this.itemIdentifier = itemIdentifier;
+		this.identifier = identifier;
 	}
 
-	@Subscribe
-	public void onGameTick(GameTick event)
+	public Collection<TrackedItemSnapshot> getItems()
 	{
-		if (hasPendingChanges)
+		return Collections.unmodifiableCollection(snapshots.values());
+	}
+
+	public boolean isTracking(int id)
+	{
+		int baseID = identifier.getBaseID(id);
+		return items.containsKey(baseID);
+	}
+
+	public void loadItems(int[] itemIDs)
+	{
+		resetState();
+
+		for (int itemID : itemIDs)
 		{
-			for (TrackedItem item : itemLookup.values())
+			int baseID = identifier.getBaseID(itemID);
+			if (!items.containsKey(baseID))
 			{
-				final EnumMap<TrackedContainer, Integer> snapshot = snapshotLookup.get(item);
-				if (item.matchesSnapshot(snapshot))
-				{
-					continue;
-				}
-
-				// Handle edge-case where transferring an item and closing the bank on the same tick caused counter desync.
-				// e.g. Deposited item is decremented from inventory but not incremented in bank.
-				// Note: The adjustment isn't made if the shared bank was closed, as this results in further desync.
-				if (bankClosedLastTick && !sharedBankClosedLastTick)
-				{
-					final int bankCounter = item.getContainerCount(TrackedContainer.BANK);
-					final int equipmentCounter = item.getContainerCount(TrackedContainer.EQUIPMENT);
-					final int inventoryCounter = item.getContainerCount(TrackedContainer.INVENTORY);
-					final int inventoryCounterSnapshot = snapshot.get(TrackedContainer.INVENTORY);
-					final int equipmentCounterSnapshot = snapshot.get(TrackedContainer.EQUIPMENT);
-
-					final int bankDelta = equipmentCounterSnapshot - equipmentCounter + inventoryCounterSnapshot - inventoryCounter;
-					item.setContainerCounter(TrackedContainer.BANK, bankCounter + bankDelta);
-				}
-
-				snapshotLookup.put(item, item.createSnapshot());
-				eventBus.post(new ItemUpdated(item));
+				items.put(baseID, new TrackedItem(baseID, itemID, identifier.getName(itemID)));
 			}
 		}
 
-		bankClosedLastTick = false;
-		sharedBankClosedLastTick = false;
-		hasPendingChanges = false;
+		for (var kind : TrackedContainer.values())
+		{
+			ItemContainer container = client.getItemContainer(kind.containerID);
+			if (container != null)
+			{
+				refreshContainer(kind, container);
+				if (!syncedWithBank && kind == TrackedContainer.BANK)
+				{
+					syncedWithBank = true;
+					eventBus.post(new SyncedWithBank());
+				}
+			}
+		}
+
+		var outgoingSnapshots = new ArrayList<TrackedItemSnapshot>(items.size());
+		for (TrackedItem item : items.values())
+		{
+			var snapshot = new TrackedItemSnapshot(item);
+			outgoingSnapshots.add(snapshot);
+			snapshots.put(item.baseID, snapshot);
+		}
+
+		eventBus.post(new Invalidated(Collections.unmodifiableCollection(outgoingSnapshots)));
 	}
 
-	@Subscribe
-	public void onItemContainerChanged(ItemContainerChanged event)
+	public void startTracking(int itemID)
 	{
-		final var trackedContainer = TrackedContainer.fromContainerID(event.getContainerId());
-		if (trackedContainer != null)
+		int baseID = identifier.getBaseID(itemID);
+		if (items.containsKey(baseID))
 		{
-			refreshContainer(trackedContainer, event.getItemContainer());
-			hasPendingChanges = true;
+			return;
+		}
+
+		// Set initial item count for all available containers.
+		var item = new TrackedItem(baseID, itemID, identifier.getName(itemID));
+		for (var kind : TrackedContainer.values())
+		{
+			var container = client.getItemContainer(kind.containerID);
+			if (container == null)
+			{
+				continue;
+			}
+
+			int count = 0;
+			for (var containerItem : container.getItems())
+			{
+				int id = containerItem.getId();
+				if (identifier.getBaseID(id) == baseID && !identifier.isPlaceholder(id))
+				{
+					count += containerItem.getQuantity();
+				}
+			}
+			item.counters.put(kind, count);
+		}
+
+		items.put(baseID, item);
+		var snapshot = new TrackedItemSnapshot(item);
+		snapshots.put(baseID, snapshot);
+		eventBus.post(new ItemAdded(snapshot));
+	}
+
+	public void stopTracking(int itemID)
+	{
+		int baseID = identifier.getBaseID(itemID);
+		if (items.remove(baseID) != null)
+		{
+			TrackedItemSnapshot removedSnapshots = snapshots.remove(baseID);
+			eventBus.post(new ItemRemoved(removedSnapshots));
 		}
 	}
 
+	public void reset()
+	{
+		resetState();
+		eventBus.post(new Invalidated(new ArrayList<>()));
+	}
+
 	@Subscribe
-	public void onWidgetClosed(WidgetClosed event)
+	private void onWidgetClosed(WidgetClosed event)
 	{
 		if (event.getGroupId() == InterfaceID.BANKMAIN)
 		{
@@ -104,114 +178,100 @@ public class ItemTracker
 		}
 	}
 
-	public Collection<TrackedItem> getItems()
+	@Subscribe
+	private void onItemContainerChanged(ItemContainerChanged event)
 	{
-		return Collections.unmodifiableCollection(itemLookup.values());
-	}
-
-	public boolean containsItem(int itemID)
-	{
-		final int baseID = itemIdentifier.getBaseID(itemID);
-		return itemLookup.containsKey(baseID);
-	}
-
-	public TrackedItem addItem(int itemID)
-	{
-		final TrackedItem trackedItem = createTrackedItem(itemID);
-		refreshAvailableContainers();
-		snapshotLookup.put(trackedItem, trackedItem.createSnapshot());
-		eventBus.post(new ItemAdded(trackedItem));
-		return trackedItem;
-	}
-
-	public void addItems(int[] trackedItemIDs)
-	{
-		for (int itemID : trackedItemIDs)
+		var kind = TrackedContainer.fromContainerID(event.getContainerId());
+		if (kind != null)
 		{
-			createTrackedItem(itemID);
-		}
-
-		refreshAvailableContainers();
-
-		for (TrackedItem item : itemLookup.values())
-		{
-			snapshotLookup.put(item, item.createSnapshot());
+			refreshContainer(kind, event.getItemContainer());
+			containerHasChanged = true;
+			if (!syncedWithBank && kind == TrackedContainer.BANK)
+			{
+				syncedWithBank = true;
+				eventBus.post(new SyncedWithBank());
+			}
 		}
 	}
 
-	public void removeItem(int itemID)
+	@Subscribe
+	private void onGameTick(GameTick event)
 	{
-		final int baseID = itemIdentifier.getBaseID(itemID);
-		final TrackedItem removedItem = itemLookup.remove(baseID);
-		if (removedItem == null)
+		if (containerHasChanged)
 		{
-			final String itemName = itemIdentifier.getName(itemID);
-			throw new IllegalArgumentException("Cannot remove untracked item: " + itemName);
+			// Don't allocate until we match a changed item.
+			ArrayList<TrackedItemSnapshot> updatedSnapshots = null;
+
+			for (TrackedItem item : items.values())
+			{
+				var snapshot = snapshots.get(item.baseID);
+				if (snapshot.hasMatchingContainerCounts(item))
+				{
+					continue;
+				}
+
+				// Handle edge-case where transferring an item and closing the bank on the same tick caused counter desync.
+				// e.g. Deposited item is decremented from inventory but not incremented in bank.
+				// Note: Immediately closing the interface with ESC still incurs desync, can this be improved further?
+				// Note: The adjustment isn't made if the shared bank was closed, as this results in further desync.
+				if (bankClosedLastTick && !sharedBankClosedLastTick)
+				{
+					int prevTotal = snapshot.countAll();
+					int currentTotal = item.countAll();
+					int error = currentTotal - prevTotal;
+					int corrected = item.counters.get(TrackedContainer.BANK) - error;
+					item.counters.put(TrackedContainer.BANK, corrected);
+				}
+
+				snapshot = new TrackedItemSnapshot(item);
+				snapshots.put(item.baseID, snapshot);
+
+				if (updatedSnapshots == null)
+				{
+					// Big enough to avoid resize in most cases.
+					updatedSnapshots = new ArrayList<>(8);
+				}
+				updatedSnapshots.add(snapshot);
+			}
+
+			if (updatedSnapshots != null)
+			{
+				eventBus.post(new ItemsUpdated(Collections.unmodifiableCollection(updatedSnapshots)));
+			}
 		}
 
-		snapshotLookup.remove(removedItem);
-		eventBus.post(new ItemRemoved(removedItem));
+		bankClosedLastTick = false;
+		sharedBankClosedLastTick = false;
+		containerHasChanged = false;
 	}
 
-	public void reset()
+	private void resetState()
 	{
 		bankClosedLastTick = false;
 		sharedBankClosedLastTick = false;
-		hasPendingChanges = false;
-		itemLookup.clear();
-		snapshotLookup.clear();
+		containerHasChanged = false;
+		syncedWithBank = false;
+		items.clear();
+		snapshots.clear();
 	}
 
-	private TrackedItem createTrackedItem(int itemID)
+	private void refreshContainer(TrackedContainer kind, ItemContainer container)
 	{
-		final int baseID = itemIdentifier.getBaseID(itemID);
-		final String name = itemIdentifier.getName(baseID);
+		assert kind.containerID == container.getId();
 
-		if (itemLookup.containsKey(baseID))
+		for (TrackedItem item : items.values())
 		{
-			throw new IllegalArgumentException("Already tracking item: " + name);
+			item.counters.put(kind, 0);
 		}
 
-		final var trackedItem = new TrackedItem(baseID, name);
-		itemLookup.put(baseID, trackedItem);
-		return trackedItem;
-	}
-
-	private void refreshContainer(TrackedContainer trackedContainer, ItemContainer itemContainer)
-	{
-		final Item[] containerItems = itemContainer.getItems();
-
-		for (TrackedItem trackedItem : itemLookup.values())
+		for (Item containerItem : container.getItems())
 		{
-			trackedItem.resetContainerCounter(trackedContainer);
-		}
-
-		for (Item item : containerItems)
-		{
-			final int itemId = item.getId();
-
-			if (itemIdentifier.isPlaceholder(itemId))
+			int id = containerItem.getId();
+			TrackedItem item = items.get(identifier.getBaseID(id));
+			if (item != null && !identifier.isPlaceholder(id))
 			{
-				continue;
-			}
-
-			final int baseID = itemIdentifier.getBaseID(itemId);
-			final TrackedItem trackedItem = itemLookup.get(baseID);
-			if (trackedItem != null)
-			{
-				trackedItem.increaseContainerCounter(trackedContainer, item.getQuantity());
-			}
-		}
-	}
-
-	private void refreshAvailableContainers()
-	{
-		for (var trackedContainer : TrackedContainer.values())
-		{
-			final var itemContainer = client.getItemContainer(trackedContainer.containerID);
-			if (itemContainer != null)
-			{
-				refreshContainer(trackedContainer, itemContainer);
+				int count = item.counters.get(kind) + containerItem.getQuantity();
+				item.counters.put(kind, count);
 			}
 		}
 	}

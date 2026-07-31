@@ -4,81 +4,38 @@ import java.util.EnumMap;
 
 public class TrackedItem
 {
-	private final EnumMap<TrackedContainer, Integer> containerCounters;
+	private static final EnumMap<TrackedContainer, Integer> EMPTY_COUNTERS;
 
-	private final int itemID;
-
-	private final String itemName;
-
-	public TrackedItem(int baseID, String itemName)
+	static
 	{
-		this.itemID = baseID;
-		this.itemName = itemName;
-
-		containerCounters = new EnumMap<>(TrackedContainer.class);
-		for (var container : TrackedContainer.values())
+		EMPTY_COUNTERS = new EnumMap<>(TrackedContainer.class);
+		for (var kind : TrackedContainer.values())
 		{
-			containerCounters.put(container, 0);
+			EMPTY_COUNTERS.put(kind, 0);
 		}
 	}
 
-	public int getItemID()
+	public final String name;
+	public final int baseID;
+	public final int realID;
+	public final EnumMap<TrackedContainer, Integer> counters;
+
+	public TrackedItem(int baseID, int realID, String name)
 	{
-		return itemID;
+		this.name = name;
+		this.baseID = baseID;
+		this.realID = realID;
+		this.counters = new EnumMap<>(EMPTY_COUNTERS);
 	}
 
-	public String getItemName()
-	{
-		return itemName;
-	}
-
-	public int getContainerCount(TrackedContainer container)
-	{
-		return containerCounters.get(container);
-	}
-
-	public int getTotalCount()
+	public int countAll()
 	{
 		int sum = 0;
-		for (int quantity : containerCounters.values())
+		for (int count : counters.values())
 		{
-			sum += quantity;
+			sum += count;
 		}
 
 		return sum;
-	}
-
-	public void increaseContainerCounter(TrackedContainer container, int value)
-	{
-		assert value > 0;
-		assert containerCounters.containsKey(container);
-
-		final int existingValue = containerCounters.get(container);
-		containerCounters.put(container, existingValue + value);
-	}
-
-	public void setContainerCounter(TrackedContainer container, int value)
-	{
-		assert value >= 0;
-		assert containerCounters.containsKey(container);
-
-		containerCounters.put(container, value);
-	}
-
-	public void resetContainerCounter(TrackedContainer container)
-	{
-		assert containerCounters.containsKey(container);
-
-		containerCounters.put(container, 0);
-	}
-
-	public EnumMap<TrackedContainer, Integer> createSnapshot()
-	{
-		return new EnumMap<>(containerCounters);
-	}
-
-	public boolean matchesSnapshot(EnumMap<TrackedContainer, Integer> snapshot)
-	{
-		return snapshot.equals(containerCounters);
 	}
 }

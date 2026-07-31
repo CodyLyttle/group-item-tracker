@@ -1,6 +1,5 @@
 package com.groupitemtracker;
 
-import com.groupitemtracker.events.ItemRemoved;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -8,15 +7,12 @@ import java.awt.image.BufferedImage;
 import java.util.HashSet;
 import java.util.Set;
 import javax.inject.Inject;
-import javax.inject.Singleton;
 import net.runelite.api.Client;
-import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
-import net.runelite.api.Menu;
 import net.runelite.api.MenuEntry;
-import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.widgets.WidgetItem;
@@ -25,8 +21,6 @@ import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.WidgetItemOverlay;
 
-// Singleton to lower total number of injected dependencies in main plugin class.
-@Singleton
 public class BankInterfaceManager extends WidgetItemOverlay
 {
 	private static final String BANK_SEARCH_KEYWORD = "/g";
@@ -34,15 +28,16 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	private static final String MENU_OPTION_ADD = "Start-tracking";
 	private static final String MENU_OPTION_REMOVE = "Stop-tracking";
 
+	private final Client client;
+	private final GroupItemTrackerConfig config;
 	private final ItemIdentifier itemIdentifier;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
+
 	private final Set<Integer> itemCache = new HashSet<>();
-	private final Client client;
-	private final GroupItemTrackerConfig config;
-	private Color highlightColor;
 	private boolean useItemHighlights;
 	private boolean useSearchFilter;
+	private Color highlightColor;
 
 	@Inject
 	public BankInterfaceManager(Client client, GroupItemTrackerConfig config, ItemIdentifier itemIdentifier, ItemManager itemManager, ItemTracker itemTracker)
@@ -55,15 +50,102 @@ public class BankInterfaceManager extends WidgetItemOverlay
 		showOnBank();
 	}
 
+	public void startup()
+	{
+		useSearchFilter = config.useBankFilter();
+		useItemHighlights = config.useBankHighlights();
+		highlightColor = config.bankHighlightColor();
+	}
+
+	public void shutdown()
+	{
+		useSearchFilter = false;
+		useItemHighlights = false;
+		highlightColor = null;
+		itemCache.clear();
+	}
+
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
-		// Only highlight cached, non-placeholder items.
-		if (useItemHighlights && itemCache.contains(itemId) && widgetItem.getQuantity() > 0)
+		if (useItemHighlights && itemCache.contains(itemId))
 		{
-			final Rectangle bounds = widgetItem.getCanvasBounds();
-			final BufferedImage outline = itemManager.getItemOutline(itemId, widgetItem.getQuantity(), highlightColor);
+			Rectangle bounds = widgetItem.getCanvasBounds();
+			BufferedImage outline = itemManager.getItemOutline(itemId, widgetItem.getQuantity(), highlightColor);
 			graphics.drawImage(outline, (int) bounds.getX(), (int) bounds.getY(), null);
+		}
+	}
+
+	@Subscribe
+	private void onInvalidated(ItemTracker.Invalidated event)
+	{
+		refreshItemCache();
+	}
+
+	@Subscribe
+	private void onItemAdded(ItemTracker.ItemAdded event)
+	{
+		refreshItemCache();
+	}
+
+	@Subscribe
+	private void onItemRemoved(ItemTracker.ItemRemoved event)
+	{
+		refreshItemCache();
+	}
+
+	@Subscribe
+	private void onItemsUpdated(ItemTracker.ItemsUpdated event)
+	{
+		refreshItemCache();
+	}
+
+	@Subscribe
+	private void onWidgetLoaded(WidgetLoaded event)
+	{
+		var interfaceID = event.getGroupId();
+		if (interfaceID == InterfaceID.BANKMAIN || interfaceID == InterfaceID.SHARED_BANK)
+		{
+			refreshItemCache();
+		}
+	}
+
+	private void refreshItemCache()
+	{
+		var bank = client.getItemContainer(InventoryID.BANK);
+		if (bank != null)
+		{
+			itemCache.clear();
+			addContainerToCache(bank);
+			return;
+		}
+
+		var groupStorage = client.getItemContainer(InventoryID.INV_GROUP_TEMP);
+		if (groupStorage != null)
+		{
+			itemCache.clear();
+			addContainerToCache(groupStorage);
+
+			// ItemTracker doesn't monitor group storage so we can't rely on its events to keep the cache up-to-date.
+			// We can work around this by supplementing the cache with the tracked items in our inventory.
+			// The cache is cleared whenever the bank is loaded, so we don't have to worry about reverting this.
+			var inventory = client.getItemContainer(InventoryID.INV);
+			if (inventory != null)
+			{
+				addContainerToCache(inventory);
+			}
+		}
+	}
+
+	private void addContainerToCache(ItemContainer container)
+	{
+		for (var item : container.getItems())
+		{
+			int itemID = item.getId();
+			if (itemTracker.isTracking(itemID) && !itemIdentifier.isPlaceholder(itemID))
+			{
+				itemCache.add(itemID);
+			}
 		}
 	}
 
@@ -88,62 +170,30 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	}
 
 	@Subscribe
-	private void onItemContainerChanged(ItemContainerChanged event)
-	{
-		final int containerID = event.getContainerId();
-		if (containerID == InventoryID.BANK || containerID == InventoryID.INV_GROUP_TEMP)
-		{
-			refreshContainer(event.getItemContainer());
-		}
-	}
-
-	@Subscribe
-	private void onItemRemoved(ItemRemoved event)
-	{
-		final ItemContainer bankContainer = getBankContainerOrNull();
-		if (bankContainer != null)
-		{
-			refreshContainer(bankContainer);
-		}
-	}
-
-	@Subscribe
 	private void onMenuEntryAdded(MenuEntryAdded event)
 	{
-		final int interfaceID = event.getActionParam1();
-		final boolean isBank = (interfaceID == InterfaceID.Bankmain.ITEMS || interfaceID == InterfaceID.SharedBank.ITEMS);
+		int param = event.getActionParam1();
+		boolean isBankItemMenu = param == InterfaceID.Bankmain.ITEMS || param == InterfaceID.SharedBank.ITEMS;
 
-
-		// Target 'Examine' option to ensure we're clicking an item, also prevents adding our entry more than once.
-		if (isBank && event.getOption().equals("Examine"))
+		// Add custom menu option after (above) Examine.
+		if (isBankItemMenu && event.getOption().equals("Examine"))
 		{
-			final int itemID = client.getWidget(interfaceID).getChild(event.getActionParam0()).getItemId();
-			final boolean isTracked = itemTracker.containsItem(itemID);
-			
-			final int indexBeforeExamine = 2;
-			final Menu menu = client.getMenu();
-			final MenuEntry entry = menu.createMenuEntry(indexBeforeExamine);
+			final int itemID = event.getItemId();
+			boolean isTracked = itemTracker.isTracking(itemID);
+
+			MenuEntry entry = client.getMenu().createMenuEntry(-1);
 			entry.setItemId(itemID);
 			entry.setOption(isTracked ? MENU_OPTION_REMOVE : MENU_OPTION_ADD);
 			entry.setTarget(event.getTarget());
-			
-			entry.onClick(e ->
-			{
-				if (isTracked)
-				{
-					itemTracker.removeItem(itemID);
-				}
-				else
-				{
-					itemTracker.addItem(itemID);
-				}
 
-				final ItemContainer bankContainer = getBankContainerOrNull();
-				if (bankContainer != null)
-				{
-					refreshContainer(bankContainer);
-				}
-			});
+			if (isTracked)
+			{
+				entry.onClick(e -> itemTracker.stopTracking(itemID));
+			}
+			else
+			{
+				entry.onClick(e -> itemTracker.startTracking(itemID));
+			}
 		}
 	}
 
@@ -155,8 +205,8 @@ public class BankInterfaceManager extends WidgetItemOverlay
 			return;
 		}
 
-		final Object[] stringStack = client.getObjectStack();
-		final int stringStackSize = client.getObjectStackSize();
+		Object[] stringStack = client.getObjectStack();
+		int stringStackSize = client.getObjectStackSize();
 		switch (event.getEventName())
 		{
 			// Append bank search keyword hint.
@@ -168,61 +218,18 @@ public class BankInterfaceManager extends WidgetItemOverlay
 			// Bank search keyword overrides filter to display tracked items.
 			// This works for both bank and shared storage.
 			case "bankSearchFilter":
-				final String searchFilter = (String) stringStack[stringStackSize - 1];
+				String searchFilter = (String) stringStack[stringStackSize - 1];
 				if (searchFilter.equals(BANK_SEARCH_KEYWORD))
 				{
-					final int[] intStack = client.getIntStack();
-					final int intStackSize = client.getIntStackSize();
-					final int itemID = intStack[intStackSize - 1];
+					int[] intStack = client.getIntStack();
+					int intStackSize = client.getIntStackSize();
+					int itemID = intStack[intStackSize - 1];
 
 					// Whether the item should be included in the search results.
 					intStack[intStackSize - 2] = !itemIdentifier.isPlaceholder(itemID) &&
-						itemTracker.containsItem(itemID) ? 1 : 0;
+						itemTracker.isTracking(itemID) ? 1 : 0;
 				}
 				break;
-		}
-	}
-
-	public void startup()
-	{
-		useSearchFilter = config.useBankFilter();
-		useItemHighlights = config.useBankHighlights();
-		highlightColor = config.bankHighlightColor();
-
-		final ItemContainer bankContainer = getBankContainerOrNull();
-		if (bankContainer != null)
-		{
-			refreshContainer(bankContainer);
-		}
-	}
-
-	public void shutdown()
-	{
-		useSearchFilter = false;
-		useItemHighlights = false;
-		highlightColor = null;
-		itemCache.clear();
-	}
-
-	private ItemContainer getBankContainerOrNull()
-	{
-		final ItemContainer bankContainer = client.getItemContainer(InventoryID.BANK);
-		return bankContainer != null ? bankContainer : client.getItemContainer(InventoryID.INV_GROUP_TEMP);
-	}
-
-	// Profiled: < 1ms.
-	private void refreshContainer(ItemContainer bankContainer)
-	{
-		assert bankContainer.getId() == InventoryID.BANK || bankContainer.getId() == InventoryID.INV_GROUP_TEMP;
-
-		itemCache.clear();
-		for (Item item : bankContainer.getItems())
-		{
-			final int itemID = item.getId();
-			if (itemTracker.containsItem(itemID))
-			{
-				itemCache.add(itemID);
-			}
 		}
 	}
 }
