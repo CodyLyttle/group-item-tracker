@@ -8,13 +8,39 @@ import net.runelite.client.config.ConfigItem;
 @ConfigGroup(GroupItemTrackerConfig.GROUP)
 public interface GroupItemTrackerConfig extends Config
 {
+	public static enum BankHighlightMode
+	{
+		NEVER,
+		EDIT_MODE_ONLY,
+		ALWAYS
+	}
+
 	String GROUP = "group-item-tracker";
 	String KEY_BANK_FILTER = "bank-filter";
-	String KEY_BANK_HIGHLIGHTS = "bank-highlights";
-	String KEY_BANK_HIGHLIGHTS_COLOR = "bank-highlights-color";
+	String KEY_BANK_OUTLINE_MODE = "bank-outline-mode";
+	String KEY_BANK_OUTLINE_COLOR = "bank-outline-color";
+	String KEY_EDIT_MODE_ACTIVE = "edit_mode_active";
 
 	@ConfigItem(
-		keyName = GroupItemTrackerConfig.KEY_BANK_FILTER,
+		keyName = KEY_BANK_OUTLINE_MODE,
+		name = "Draw outlines",
+		description = "Draw outlines around tracked items in the bank and shared storage interfaces.")
+	default BankHighlightMode bankOutlineMode()
+	{
+		return BankHighlightMode.EDIT_MODE_ONLY;
+	}
+
+	@ConfigItem(
+		keyName = KEY_BANK_OUTLINE_COLOR,
+		name = "Outline color",
+		description = "The outline color of tracked items in the bank and shared storage interfaces.")
+	default Color bankOutlineColor()
+	{
+		return Color.CYAN;
+	}
+
+	@ConfigItem(
+		keyName = KEY_BANK_FILTER,
 		name = "Bank search filter",
 		description = "Filter tracked items in the bank or shared storage interface by typing '/g' in the search box.")
 	default boolean useBankFilter()
@@ -23,20 +49,11 @@ public interface GroupItemTrackerConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = GroupItemTrackerConfig.KEY_BANK_HIGHLIGHTS,
-		name = "Highlight bank items",
-		description = "Draw outlines around tracked items in the bank and shared storage interfaces.")
-	default boolean useBankHighlights()
+		keyName = KEY_EDIT_MODE_ACTIVE,
+		name = "Edit mode",
+		description = "TODO: Description")
+	default boolean editModeActive()
 	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = GroupItemTrackerConfig.KEY_BANK_HIGHLIGHTS_COLOR,
-		name = "Highlight color",
-		description = "The outline color of tracked items in the bank and shared storage interfaces.")
-	default Color bankHighlightColor()
-	{
-		return Color.YELLOW;
+		return false;
 	}
 }

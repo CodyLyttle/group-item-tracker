@@ -16,10 +16,12 @@ import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.widgets.WidgetItem;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.WidgetItemOverlay;
+import static com.groupitemtracker.GroupItemTrackerConfig.BankHighlightMode;
 
 public class BankInterfaceManager extends WidgetItemOverlay
 {
@@ -27,23 +29,28 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	private static final String BANK_SEARCH_KEYWORD_HINT = "<br>" + "Type " + BANK_SEARCH_KEYWORD + " to show tracked items";
 	private static final String MENU_OPTION_ADD = "Start-tracking";
 	private static final String MENU_OPTION_REMOVE = "Stop-tracking";
+	private static final String MENU_OPTION_EDIT_MODE_ENTER = "Enter edit mode";
+	private static final String MENU_OPTION_EDIT_MODE_EXIT = "Exit edit mode";
 
 	private final Client client;
 	private final GroupItemTrackerConfig config;
+	private final ConfigManager configManager;
 	private final ItemIdentifier itemIdentifier;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
 
 	private final Set<Integer> itemCache = new HashSet<>();
-	private boolean useItemHighlights;
+	private BankHighlightMode outlineMode;
+	private Color outlineColor;
 	private boolean useSearchFilter;
-	private Color highlightColor;
+	private boolean editModeEnabled;
 
 	@Inject
-	public BankInterfaceManager(Client client, GroupItemTrackerConfig config, ItemIdentifier itemIdentifier, ItemManager itemManager, ItemTracker itemTracker)
+	public BankInterfaceManager(Client client, GroupItemTrackerConfig config, ConfigManager configManager, ItemIdentifier itemIdentifier, ItemManager itemManager, ItemTracker itemTracker)
 	{
 		this.client = client;
 		this.config = config;
+		this.configManager = configManager;
 		this.itemIdentifier = itemIdentifier;
 		this.itemManager = itemManager;
 		this.itemTracker = itemTracker;
@@ -52,26 +59,28 @@ public class BankInterfaceManager extends WidgetItemOverlay
 
 	public void startup()
 	{
+		outlineMode = config.bankOutlineMode();
+		outlineColor = config.bankOutlineColor();
 		useSearchFilter = config.useBankFilter();
-		useItemHighlights = config.useBankHighlights();
-		highlightColor = config.bankHighlightColor();
+		editModeEnabled = config.editModeActive();
 	}
 
 	public void shutdown()
 	{
 		useSearchFilter = false;
-		useItemHighlights = false;
-		highlightColor = null;
+		outlineMode = null;
+		outlineColor = null;
 		itemCache.clear();
 	}
 
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
-		if (useItemHighlights && itemCache.contains(itemId))
+		boolean drawOutlines = outlineMode == BankHighlightMode.ALWAYS || outlineMode == BankHighlightMode.EDIT_MODE_ONLY && editModeEnabled;
+		if (drawOutlines && itemCache.contains(itemId))
 		{
 			Rectangle bounds = widgetItem.getCanvasBounds();
-			BufferedImage outline = itemManager.getItemOutline(itemId, widgetItem.getQuantity(), highlightColor);
+			BufferedImage outline = itemManager.getItemOutline(itemId, widgetItem.getQuantity(), outlineColor);
 			graphics.drawImage(outline, (int) bounds.getX(), (int) bounds.getY(), null);
 		}
 	}
@@ -159,11 +168,14 @@ public class BankInterfaceManager extends WidgetItemOverlay
 				case GroupItemTrackerConfig.KEY_BANK_FILTER:
 					useSearchFilter = config.useBankFilter();
 					break;
-				case GroupItemTrackerConfig.KEY_BANK_HIGHLIGHTS:
-					useItemHighlights = config.useBankHighlights();
+				case GroupItemTrackerConfig.KEY_BANK_OUTLINE_MODE:
+					outlineMode = config.bankOutlineMode();
 					break;
-				case GroupItemTrackerConfig.KEY_BANK_HIGHLIGHTS_COLOR:
-					highlightColor = config.bankHighlightColor();
+				case GroupItemTrackerConfig.KEY_BANK_OUTLINE_COLOR:
+					outlineColor = config.bankOutlineColor();
+					break;
+				case GroupItemTrackerConfig.KEY_EDIT_MODE_ACTIVE:
+					editModeEnabled = config.editModeActive();
 					break;
 			}
 		}
@@ -173,26 +185,52 @@ public class BankInterfaceManager extends WidgetItemOverlay
 	private void onMenuEntryAdded(MenuEntryAdded event)
 	{
 		int param = event.getActionParam1();
-		boolean isBankItemMenu = param == InterfaceID.Bankmain.ITEMS || param == InterfaceID.SharedBank.ITEMS;
+
+		if (param == InterfaceID.Bankmain.GIM_STORAGE)
+		{
+			if (event.getOption().equals("Group Storage"))
+			{
+				MenuEntry entry = client.getMenu().createMenuEntry(-1);
+				entry.setOption(editModeEnabled ? MENU_OPTION_EDIT_MODE_EXIT : MENU_OPTION_EDIT_MODE_ENTER);
+				entry.setTarget(event.getTarget());
+				entry.onClick(e -> configManager.setConfiguration(
+					GroupItemTrackerConfig.GROUP, GroupItemTrackerConfig.KEY_EDIT_MODE_ACTIVE, !editModeEnabled));
+			}
+		}
+
+		if (param == InterfaceID.SharedBank.MAIN_BANK)
+		{
+			if (event.getOption().equals("Back to bank"))
+			{
+				MenuEntry entry = client.getMenu().createMenuEntry(-1);
+				entry.setOption(editModeEnabled ? MENU_OPTION_EDIT_MODE_EXIT : MENU_OPTION_EDIT_MODE_ENTER);
+				entry.setTarget(event.getTarget());
+				entry.onClick(e -> configManager.setConfiguration(
+					GroupItemTrackerConfig.GROUP, GroupItemTrackerConfig.KEY_EDIT_MODE_ACTIVE, !editModeEnabled));
+			}
+		}
 
 		// Add custom menu option after (above) Examine.
-		if (isBankItemMenu && event.getOption().equals("Examine"))
+		if (param == InterfaceID.Bankmain.ITEMS || param == InterfaceID.SharedBank.ITEMS)
 		{
-			final int itemID = event.getItemId();
-			boolean isTracked = itemTracker.isTracking(itemID);
-
-			MenuEntry entry = client.getMenu().createMenuEntry(-1);
-			entry.setItemId(itemID);
-			entry.setOption(isTracked ? MENU_OPTION_REMOVE : MENU_OPTION_ADD);
-			entry.setTarget(event.getTarget());
-
-			if (isTracked)
+			if (editModeEnabled && event.getOption().equals("Examine"))
 			{
-				entry.onClick(e -> itemTracker.stopTracking(itemID));
-			}
-			else
-			{
-				entry.onClick(e -> itemTracker.startTracking(itemID));
+				final int itemID = event.getItemId();
+				boolean isTracked = itemTracker.isTracking(itemID);
+
+				MenuEntry entry = client.getMenu().createMenuEntry(-1);
+				entry.setItemId(itemID);
+				entry.setOption(isTracked ? MENU_OPTION_REMOVE : MENU_OPTION_ADD);
+				entry.setTarget(event.getTarget());
+
+				if (isTracked)
+				{
+					entry.onClick(e -> itemTracker.stopTracking(itemID));
+				}
+				else
+				{
+					entry.onClick(e -> itemTracker.startTracking(itemID));
+				}
 			}
 		}
 	}
