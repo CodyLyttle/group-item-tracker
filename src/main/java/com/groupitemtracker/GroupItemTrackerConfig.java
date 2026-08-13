@@ -20,6 +20,8 @@ public interface GroupItemTrackerConfig extends Config
 	String KEY_BANK_OUTLINE_MODE = "bank-outline-mode";
 	String KEY_BANK_OUTLINE_COLOR = "bank-outline-color";
 	String KEY_EDIT_MODE_ACTIVE = "edit_mode_active";
+	String KEY_SHOW_SIDEBAR = "show-sidebar";
+	String KEY_SIDEBAR_PRIORITY = "sidebar_priority";
 
 	@ConfigItem(
 		keyName = KEY_BANK_OUTLINE_MODE,
@@ -55,5 +57,23 @@ public interface GroupItemTrackerConfig extends Config
 	default boolean editModeActive()
 	{
 		return false;
+	}
+
+	@ConfigItem(
+		keyName = KEY_SHOW_SIDEBAR,
+		name = "Show sidebar",
+		description = "TODO: Description")
+	default boolean showSidebar()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = KEY_SIDEBAR_PRIORITY,
+		name = "Sidebar priority",
+		description = "TODO: Description")
+	default int sidebarPriority()
+	{
+		return 1;
 	}
 }

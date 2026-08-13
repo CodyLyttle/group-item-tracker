@@ -112,12 +112,35 @@ public final class SidebarPanel extends PluginPanel
 
 	public void login()
 	{
-		SwingUtilities.invokeLater(() -> hintLabel.setText(INITIAL_SYNC_HINT_LABEL));
+		final String hint = itemTracker.isSyncedWithBank() ? TUTORIAL_HINT_LABEL : INITIAL_SYNC_HINT_LABEL;
+		SwingUtilities.invokeLater(() -> hintLabel.setText(hint));
 	}
 
 	public void logout()
 	{
 		SwingUtilities.invokeLater(() -> hintLabel.setText(LOGIN_HINT_LABEL));
+	}
+
+	public void syncWithItemTracker()
+	{
+		// Copy the collection before crossing the thread-boundary to avoid ConcurrentModificationException.
+		final var items = itemTracker.getItems().toArray(TrackedItemSnapshot[]::new);
+
+		SwingUtilities.invokeLater(() -> {
+			for (var item : items)
+			{
+				var entry = createItemPanelEntry(item);
+				sortedEntries.add(entry);
+			}
+
+			sortedEntries.sort(ENTRY_COMPARER);
+			for (var entry : sortedEntries)
+			{
+				itemsGrid.add(entry.panel);
+			}
+
+			refreshSidebar();
+		});
 	}
 
 	@Subscribe
@@ -131,13 +154,13 @@ public final class SidebarPanel extends PluginPanel
 	{
 		SwingUtilities.invokeLater(() -> {
 			sortedEntries.clear();
-			for (var info : event.getItems())
+			for (var item : event.getItems())
 			{
-				var entry = createItemPanelEntry(info);
+				var entry = createItemPanelEntry(item);
 				sortedEntries.add(entry);
 			}
-			sortedEntries.sort(ENTRY_COMPARER);
 
+			sortedEntries.sort(ENTRY_COMPARER);
 			itemsGrid.removeAll();
 			for (var entry : sortedEntries)
 			{

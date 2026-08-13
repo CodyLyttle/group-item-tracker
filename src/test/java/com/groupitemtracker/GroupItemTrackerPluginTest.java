@@ -196,15 +196,19 @@ public class GroupItemTrackerPluginTest
 		// Initial sync.
 		postItemContainerChanged(BANK);
 		msgSink.take(SyncedWithBank.class);
+		Assert.assertTrue(sut.isSyncedWithBank());
 
 		// Already synced.
 		postItemContainerChanged(BANK);
 		assertNoMessage(SyncedWithBank.class);
+		Assert.assertTrue(sut.isSyncedWithBank());
 
 		// After reset.
 		sut.reset();
+		Assert.assertFalse(sut.isSyncedWithBank());
 		postItemContainerChanged(BANK);
 		msgSink.take(SyncedWithBank.class);
+		Assert.assertTrue(sut.isSyncedWithBank());
 	}
 
 	@Test

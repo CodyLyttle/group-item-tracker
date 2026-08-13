@@ -12,6 +12,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -34,6 +35,9 @@ public class GroupItemTrackerPlugin extends Plugin
 	private ClientToolbar clientToolbar;
 
 	@Inject
+	private GroupItemTrackerConfig config;
+
+	@Inject
 	private EventBus eventBus;
 
 	@Inject
@@ -52,7 +56,8 @@ public class GroupItemTrackerPlugin extends Plugin
 	private ProfileManager profileManager;
 
 	private NavigationButton navButton;
-	private SidebarPanel sidebarPanel;
+	private SidebarPanel sidebar;
+	private BufferedImage sidebarIcon;
 	private boolean isProfileLoaded;
 
 	@Provides
@@ -64,21 +69,16 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		// Icon from cache dump: sprite 3553.
-		sidebarPanel = new SidebarPanel(clientThread, itemManager, itemTracker);
-		BufferedImage sidebarIcon = ImageUtil.loadImageResource(getClass(), "sidebar_icon.png");
-		navButton = NavigationButton.builder()
-			.tooltip("Group Item Tracker")
-			.icon(sidebarIcon)
-			.panel(sidebarPanel)
-			.build();
+		sidebarIcon = ImageUtil.loadImageResource(getClass(), "sidebar_icon.png");
+		if (config.showSidebar())
+		{
+			initSidebar();
+		}
 
-		clientToolbar.addNavigation(navButton);
-		overlayManager.add(bankInterfaceManager);
 		eventBus.register(bankInterfaceManager);
 		eventBus.register(itemTracker);
 		eventBus.register(profileManager);
-		eventBus.register(sidebarPanel);
+		overlayManager.add(bankInterfaceManager);
 
 		clientThread.invokeLater(() ->
 		{
@@ -93,18 +93,18 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
+		isProfileLoaded = false;
+		sidebarIcon = null;
+		tryDestroySidebar();
+
 		eventBus.unregister(bankInterfaceManager);
 		eventBus.unregister(itemTracker);
 		eventBus.unregister(profileManager);
-		eventBus.unregister(sidebarPanel);
-
 		overlayManager.remove(bankInterfaceManager);
-		clientToolbar.removeNavigation(navButton);
 
 		clientThread.invokeLater(() -> {
 			bankInterfaceManager.shutdown();
-			unloadProfile();
-			sidebarPanel = null;
+			itemTracker.reset();
 		});
 	}
 
@@ -113,7 +113,12 @@ public class GroupItemTrackerPlugin extends Plugin
 	{
 		if (isProfileLoaded && event.getGameState() == GameState.LOGIN_SCREEN)
 		{
-			unloadProfile();
+			itemTracker.reset();
+			isProfileLoaded = false;
+			if (sidebar != null)
+			{
+				sidebar.logout();
+			}
 		}
 		else if (!isProfileLoaded && event.getGameState() == GameState.LOADING)
 		{
@@ -121,21 +126,86 @@ public class GroupItemTrackerPlugin extends Plugin
 		}
 	}
 
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (event.getGroup().equals(GroupItemTrackerConfig.GROUP))
+		{
+			switch (event.getKey())
+			{
+				// The user shouldn't incur the cost of something they aren't using, alloc/dealloc instead of hiding.
+				case GroupItemTrackerConfig.KEY_SHOW_SIDEBAR:
+					// Parse value so that null == false, rather than null == config.showSidebar default value.
+					// This prevents sidebar panel duplication upon resetting the config value.
+					var showSidebar = Boolean.parseBoolean(event.getNewValue());
+					if (showSidebar)
+					{
+						initSidebar();
+						sidebar.syncWithItemTracker();
+						if (client.getGameState() == GameState.LOGGED_IN)
+						{
+							sidebar.login();
+						}
+					}
+					else
+					{
+						tryDestroySidebar();
+					}
+					break;
+				// This setting is likely to be tinkered with repeatedly, keep the sidebar to avoid unnecessary work.
+				case GroupItemTrackerConfig.KEY_SIDEBAR_PRIORITY:
+					if (config.showSidebar())
+					{
+						clientToolbar.removeNavigation(navButton);
+						navButton = buildNavButton(sidebarIcon, sidebar, config.sidebarPriority());
+						clientToolbar.addNavigation(navButton);
+					}
+					break;
+			}
+		}
+	}
+
 	private void loadProfile()
 	{
 		int[] trackedItemIDs = profileManager.readTrackedItemIDs();
-
-		// login before loadItems to preserve the correct sidebar hint order in the event that the bank is already open.
-		// The SyncWithBank message indirectly updates the hint message, which login would then overwrite.
-		sidebarPanel.login();
 		itemTracker.loadItems(trackedItemIDs);
 		isProfileLoaded = true;
+		if (sidebar != null)
+		{
+			sidebar.login();
+		}
 	}
 
-	private void unloadProfile()
+	private NavigationButton buildNavButton(BufferedImage icon, SidebarPanel panel, int priority)
 	{
-		itemTracker.reset();
-		sidebarPanel.logout();
-		isProfileLoaded = false;
+		return NavigationButton.builder()
+			.tooltip("Group Item Tracker")
+			.icon(icon)
+			.panel(panel)
+			.priority(priority)
+			.build();
+	}
+
+	private void initSidebar()
+	{
+		sidebar = new SidebarPanel(clientThread, itemManager, itemTracker);
+		eventBus.register(sidebar);
+		navButton = buildNavButton(sidebarIcon, sidebar, config.sidebarPriority());
+		clientToolbar.addNavigation(navButton);
+	}
+
+	private void tryDestroySidebar()
+	{
+		if (navButton != null)
+		{
+			clientToolbar.removeNavigation(navButton);
+			navButton = null;
+		}
+
+		if (sidebar != null)
+		{
+			eventBus.unregister(sidebar);
+			sidebar = null;
+		}
 	}
 }

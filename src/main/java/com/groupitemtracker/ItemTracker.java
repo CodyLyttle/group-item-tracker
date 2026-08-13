@@ -4,6 +4,7 @@ import java.util.*;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.Data;
+import lombok.Getter;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
@@ -54,6 +55,8 @@ public class ItemTracker
 	private boolean bankClosedLastTick = false;
 	private boolean sharedBankClosedLastTick = false;
 	private boolean containerHasChanged = false;
+
+	@Getter
 	private boolean syncedWithBank = false;
 
 	@Inject
