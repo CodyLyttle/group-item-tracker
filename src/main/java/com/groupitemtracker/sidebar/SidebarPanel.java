@@ -1,15 +1,28 @@
 package com.groupitemtracker.sidebar;
 
+import com.groupitemtracker.GroupItemTrackerPlugin;
 import com.groupitemtracker.ItemTracker;
+import com.groupitemtracker.ProfileManager;
 import com.groupitemtracker.TrackedItemSnapshot;
 import java.awt.BorderLayout;
-import java.awt.Font;
+import java.awt.Dimension;
 import java.awt.GridLayout;
+import java.awt.Image;
+import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
@@ -21,6 +34,8 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.SwingUtil;
 
 // Profiled 100 tracked items (70% claimed).
 // Memory dump:
@@ -46,9 +61,23 @@ public final class SidebarPanel extends PluginPanel
 		}
 	}
 
-	private static final String LOGIN_HINT_LABEL = "Login to view your tracked items";
-	private static final String TUTORIAL_HINT_LABEL = "Right-click bank item to track";
-	private static final String INITIAL_SYNC_HINT_LABEL = "Open bank to finish syncing";
+	private static final String LOGGED_OUT_HINT = "Logged out";
+	private static final String BANK_SYNC_HINT = "Visit bank to finalize";
+	private static final String PLUGIN_NAME = "Group Item Tracker";
+	private static final ImageIcon IMPORT_ICON;
+	private static final ImageIcon EXPORT_ICON;
+
+	static
+	{
+		int sz = 24;
+		IMPORT_ICON = new ImageIcon(
+			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "import_icon.png")
+				.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
+
+		EXPORT_ICON = new ImageIcon(
+			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "export_icon.png")
+				.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
+	}
 
 	// Claimed items in alphabetical order, followed by unclaimed items in alphabetical order.
 	private static final Comparator<ItemPanelEntry> ENTRY_COMPARER = Comparator
@@ -57,12 +86,15 @@ public final class SidebarPanel extends PluginPanel
 
 	private final List<ItemPanelEntry> sortedEntries = new ArrayList<>();
 	private final ClientThread clientThread;
+	private final ProfileManager profileManager;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
 	private final JLabel hintLabel;
 	private final JPanel itemsGrid;
+	private final JButton importButton;
+	private final JButton exportButton;
 
-	public SidebarPanel(ClientThread clientThread, ItemManager itemManager, ItemTracker itemTracker)
+	public SidebarPanel(ClientThread clientThread, ItemManager itemManager, ItemTracker itemTracker, ProfileManager profileManager)
 	{
 		// Disable scrolling of the top level panel.
 		super(false);
@@ -70,15 +102,40 @@ public final class SidebarPanel extends PluginPanel
 		this.clientThread = clientThread;
 		this.itemManager = itemManager;
 		this.itemTracker = itemTracker;
+		this.profileManager = profileManager;
 
 		setLayout(new BorderLayout());
 		setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
 
-		JPanel titlePanel = createHeaderPanel();
-		JLabel titleLabel = createHeaderLabel("Group Item Tracker", FontManager.getRunescapeFont());
-		this.hintLabel = createHeaderLabel(LOGIN_HINT_LABEL, FontManager.getRunescapeSmallFont());
-		titlePanel.add(titleLabel, BorderLayout.NORTH);
-		titlePanel.add(hintLabel, BorderLayout.SOUTH);
+		var headerPanelColor = ColorScheme.DARKER_GRAY_COLOR;
+		var headerPanel = new JPanel(new BorderLayout());
+		headerPanel.setBorder(BorderFactory.createEmptyBorder(9, 12, 9, 7));
+		headerPanel.setBackground(headerPanelColor);
+
+		var textPanel = new JPanel(new BorderLayout());
+		textPanel.setBackground(headerPanelColor);
+		var titleLabel = new JLabel(PLUGIN_NAME);
+		titleLabel.setFont(FontManager.getRunescapeFont());
+		titleLabel.setHorizontalAlignment(SwingConstants.LEFT);
+		this.hintLabel = new JLabel(LOGGED_OUT_HINT);
+		hintLabel.setFont(FontManager.getRunescapeSmallFont());
+		hintLabel.setHorizontalAlignment(SwingConstants.LEFT);
+		textPanel.add(titleLabel, BorderLayout.NORTH);
+		textPanel.add(hintLabel, BorderLayout.SOUTH);
+
+		var buttonsGrid = new JPanel(new GridLayout(1, 2));
+		buttonsGrid.setMinimumSize(new Dimension(Integer.MAX_VALUE, 0));
+		buttonsGrid.setBackground(headerPanelColor);
+		this.exportButton = createFooterButton("Export to clipboard", EXPORT_ICON, this::exportItemsToClipboard);
+		this.importButton = createFooterButton("Import from clipboard", IMPORT_ICON, this::importItemsFromClipboard);
+		// Begin in logged-out state.
+		importButton.setEnabled(false);
+		exportButton.setEnabled(false);
+		buttonsGrid.add(exportButton);
+		buttonsGrid.add(importButton);
+
+		headerPanel.add(textPanel, BorderLayout.CENTER);
+		headerPanel.add(buttonsGrid, BorderLayout.EAST);
 
 		// Vertical stack panel of tracked items.
 		this.itemsGrid = new JPanel(new GridLayout(0, 1, 0, 1));
@@ -87,38 +144,102 @@ public final class SidebarPanel extends PluginPanel
 		wrapper.add(itemsGrid, BorderLayout.NORTH);
 		// Vertical scrolling for overflowing items.
 		var scrollPane = new JScrollPane(wrapper);
+		scrollPane.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
 		scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-		scrollPane.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, ColorScheme.DARK_GRAY_COLOR));
 
-		add(titlePanel, BorderLayout.NORTH);
+		add(headerPanel, BorderLayout.NORTH);
 		add(scrollPane, BorderLayout.CENTER);
 	}
 
-	private JPanel createHeaderPanel()
+	private JButton createFooterButton(String text, ImageIcon icon, ActionListener onClick)
 	{
-		var panel = new JPanel(new BorderLayout());
-		panel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-		panel.setBackground(ColorScheme.BORDER_COLOR);
-		return panel;
+		var button = new JButton(icon);
+		button.setToolTipText(text);
+		button.addActionListener(onClick);
+		button.setPreferredSize(new Dimension(30, 30));
+		SwingUtil.removeButtonDecorations(button);
+		return button;
 	}
 
-	private JLabel createHeaderLabel(String text, Font font)
+	private void exportItemsToClipboard(ActionEvent event)
 	{
-		var label = new JLabel(text);
-		label.setFont(font);
-		label.setHorizontalAlignment(SwingConstants.CENTER);
-		return label;
+		var selection = new StringSelection(profileManager.readItemIDsAsJson());
+		Toolkit.getDefaultToolkit()
+			.getSystemClipboard()
+			.setContents(selection, null);
+
+		// hintLabel as parent puts the messagebox in a convenient position.
+		JOptionPane.showMessageDialog(
+			hintLabel, "Successfully exported items to the clipboard.",
+			PLUGIN_NAME, JOptionPane.INFORMATION_MESSAGE);
+	}
+
+	private void importItemsFromClipboard(ActionEvent event)
+	{
+		var result = JOptionPane.showConfirmDialog(
+			hintLabel, "Imported items will replace all existing items, are you sure?",
+			PLUGIN_NAME, JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+
+		if (result != JOptionPane.YES_OPTION)
+		{
+			return;
+		}
+
+		try
+		{
+			String text = Toolkit.getDefaultToolkit()
+				.getSystemClipboard()
+				.getData(DataFlavor.stringFlavor)
+				.toString()
+				.trim();
+
+			if (profileManager.tryWriteItemIDsFromJson(text))
+			{
+				// We're about to reset the item tracker so display the bank-sync hint.
+				// onSyncedWithBank will overwrite this message if we're in the bank already.
+				hintLabel.setText(BANK_SYNC_HINT);
+
+				int[] ids = profileManager.readItemIDs();
+				clientThread.invokeLater(() -> itemTracker.loadItems(ids));
+
+				JOptionPane.showMessageDialog(
+					hintLabel, "Successfully imported items from the clipboard.",
+					PLUGIN_NAME, JOptionPane.INFORMATION_MESSAGE);
+
+				return;
+			}
+			// Failed.
+		}
+		catch (IOException | UnsupportedFlavorException ignored)
+		{
+			// Failed.
+		}
+
+		JOptionPane.showMessageDialog(
+			hintLabel, "Import failed: invalid format.",
+			PLUGIN_NAME, JOptionPane.ERROR_MESSAGE);
 	}
 
 	public void login()
 	{
-		final String hint = itemTracker.isSyncedWithBank() ? TUTORIAL_HINT_LABEL : INITIAL_SYNC_HINT_LABEL;
-		SwingUtilities.invokeLater(() -> hintLabel.setText(hint));
+		final boolean isSynced = itemTracker.isSyncedWithBank();
+		SwingUtilities.invokeLater(() -> {
+			importButton.setEnabled(true);
+			exportButton.setEnabled(true);
+			if (!isSynced)
+			{
+				hintLabel.setText(BANK_SYNC_HINT);
+			}
+		});
 	}
 
 	public void logout()
 	{
-		SwingUtilities.invokeLater(() -> hintLabel.setText(LOGIN_HINT_LABEL));
+		SwingUtilities.invokeLater(() -> {
+			importButton.setEnabled(false);
+			exportButton.setEnabled(false);
+			hintLabel.setText(LOGGED_OUT_HINT);
+		});
 	}
 
 	public void syncWithItemTracker()
@@ -139,6 +260,7 @@ public final class SidebarPanel extends PluginPanel
 				itemsGrid.add(entry.panel);
 			}
 
+			hintLabel.setText(createItemCountString());
 			refreshSidebar();
 		});
 	}
@@ -146,7 +268,7 @@ public final class SidebarPanel extends PluginPanel
 	@Subscribe
 	private void onSyncedWithBank(ItemTracker.SyncedWithBank event)
 	{
-		SwingUtilities.invokeLater(() -> hintLabel.setText(TUTORIAL_HINT_LABEL));
+		SwingUtilities.invokeLater(() -> hintLabel.setText(createItemCountString()));
 	}
 
 	@Subscribe
@@ -167,6 +289,7 @@ public final class SidebarPanel extends PluginPanel
 				itemsGrid.add(entry.panel);
 			}
 
+			hintLabel.setText(createItemCountString());
 			refreshSidebar();
 		});
 	}
@@ -177,10 +300,11 @@ public final class SidebarPanel extends PluginPanel
 		SwingUtilities.invokeLater(() ->
 		{
 			var entry = createItemPanelEntry(event.getItem());
+
 			sortedEntries.add(entry);
 			sortedEntries.sort(ENTRY_COMPARER);
 			itemsGrid.add(entry.panel, sortedEntries.indexOf(entry));
-
+			hintLabel.setText(createItemCountString());
 			refreshSidebar();
 		});
 	}
@@ -192,10 +316,10 @@ public final class SidebarPanel extends PluginPanel
 		{
 			var itemID = event.getItem().itemID;
 			int index = getIndexByItemID(itemID);
-			assert (index != -1);
 
 			sortedEntries.remove(index);
 			itemsGrid.remove(index);
+			hintLabel.setText(createItemCountString());
 			refreshSidebar();
 		});
 	}
@@ -253,6 +377,12 @@ public final class SidebarPanel extends PluginPanel
 		var image = itemManager.getImage(id, Integer.MAX_VALUE, false);
 		var panel = new TrackedItemPanel(item, image, (e) -> clientThread.invoke(() -> itemTracker.stopTracking(id)));
 		return new ItemPanelEntry(item, panel);
+	}
+
+	private String createItemCountString()
+	{
+		int n = sortedEntries.size();
+		return "Tracking " + n + (n == 1 ? " item" : " items");
 	}
 
 	private void refreshSidebar()

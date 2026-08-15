@@ -75,10 +75,9 @@ public class GroupItemTrackerPlugin extends Plugin
 			initSidebar();
 		}
 
+		overlayManager.add(bankInterfaceManager);
 		eventBus.register(bankInterfaceManager);
 		eventBus.register(itemTracker);
-		eventBus.register(profileManager);
-		overlayManager.add(bankInterfaceManager);
 
 		clientThread.invokeLater(() ->
 		{
@@ -97,10 +96,9 @@ public class GroupItemTrackerPlugin extends Plugin
 		sidebarIcon = null;
 		tryDestroySidebar();
 
+		overlayManager.remove(bankInterfaceManager);
 		eventBus.unregister(bankInterfaceManager);
 		eventBus.unregister(itemTracker);
-		eventBus.unregister(profileManager);
-		overlayManager.remove(bankInterfaceManager);
 
 		clientThread.invokeLater(() -> {
 			bankInterfaceManager.shutdown();
@@ -165,9 +163,23 @@ public class GroupItemTrackerPlugin extends Plugin
 		}
 	}
 
+	@Subscribe
+	private void onItemAdded(ItemTracker.ItemAdded event)
+	{
+		int[] ids = itemTracker.exportItemIDs();
+		profileManager.writeItemIDs(ids);
+	}
+
+	@Subscribe
+	private void onItemRemoved(ItemTracker.ItemRemoved event)
+	{
+		int[] ids = itemTracker.exportItemIDs();
+		profileManager.writeItemIDs(ids);
+	}
+
 	private void loadProfile()
 	{
-		int[] trackedItemIDs = profileManager.readTrackedItemIDs();
+		int[] trackedItemIDs = profileManager.readItemIDs();
 		itemTracker.loadItems(trackedItemIDs);
 		isProfileLoaded = true;
 		if (sidebar != null)
@@ -188,7 +200,7 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	private void initSidebar()
 	{
-		sidebar = new SidebarPanel(clientThread, itemManager, itemTracker);
+		sidebar = new SidebarPanel(clientThread, itemManager, itemTracker, profileManager);
 		eventBus.register(sidebar);
 		navButton = buildNavButton(sidebarIcon, sidebar, config.sidebarPriority());
 		clientToolbar.addNavigation(navButton);

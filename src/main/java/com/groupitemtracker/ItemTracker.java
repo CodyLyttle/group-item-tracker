@@ -72,6 +72,20 @@ public class ItemTracker
 		return Collections.unmodifiableCollection(snapshots.values());
 	}
 
+	public int[] exportItemIDs()
+	{
+		var ids = new int[items.size()];
+		int i = 0;
+
+		for (var item : items.values())
+		{
+			ids[i] = item.realID;
+			i++;
+		}
+
+		return ids;
+	}
+
 	public boolean isTracking(int id)
 	{
 		int baseID = identifier.getBaseID(id);

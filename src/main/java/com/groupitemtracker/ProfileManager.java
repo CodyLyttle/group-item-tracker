@@ -1,52 +1,59 @@
 package com.groupitemtracker;
 
 import com.google.gson.Gson;
-import java.util.List;
-import java.util.stream.Collectors;
+import com.google.gson.JsonSyntaxException;
 import javax.inject.Inject;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.eventbus.Subscribe;
 
 public class ProfileManager
 {
 	public static final String CONFIG_KEY_TRACKED_ITEMS = "tracked-items";
 	private final ConfigManager configManager;
 	private final Gson gson;
-	private final ItemTracker itemTracker;
 
 	@Inject
-	public ProfileManager(ConfigManager configManager, Gson gson, ItemTracker itemTracker)
+	public ProfileManager(ConfigManager configManager, Gson gson)
 	{
 		this.configManager = configManager;
 		this.gson = gson;
-		this.itemTracker = itemTracker;
 	}
 
-	@Subscribe
-	private void onItemAdded(ItemTracker.ItemAdded event)
-	{
-		writeTrackedItems();
-	}
-
-	@Subscribe
-	private void onItemRemoved(ItemTracker.ItemRemoved event)
-	{
-		writeTrackedItems();
-	}
-
-	public int[] readTrackedItemIDs()
+	public int[] readItemIDs()
 	{
 		String json = configManager.getRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS);
-		return json == null ? new int[0] : gson.fromJson(json, int[].class);
+		int[] ids = gson.fromJson(json, int[].class);
+		return ids == null ? new int[0] : ids;
 	}
 
-	private void writeTrackedItems()
+	public String readItemIDsAsJson()
 	{
-		List<Integer> itemIDs = itemTracker.getItems().stream()
-			.map(item -> item.itemID)
-			.collect(Collectors.toList());
+		String json = configManager.getRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS);
+		return json == null ? "" : json;
+	}
 
-		String json = gson.toJson(itemIDs);
+	public void writeItemIDs(int[] ids)
+	{
+		String json = gson.toJson(ids);
 		configManager.setRSProfileConfiguration(GroupItemTrackerConfig.GROUP, CONFIG_KEY_TRACKED_ITEMS, json);
+	}
+
+	public boolean tryWriteItemIDsFromJson(String json)
+	{
+		try
+		{
+			var ids = gson.fromJson(json, int[].class);
+			if (ids != null)
+			{
+				writeItemIDs(ids);
+				return true;
+			}
+			// Failed.
+		}
+		catch (JsonSyntaxException ignored)
+		{
+			// Failed.
+		}
+
+		return false;
 	}
 }
