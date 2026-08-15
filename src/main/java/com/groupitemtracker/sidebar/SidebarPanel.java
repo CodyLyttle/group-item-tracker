@@ -35,6 +35,7 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.SwingUtil;
 
 // Profiled 100 tracked items (70% claimed).
@@ -61,21 +62,28 @@ public final class SidebarPanel extends PluginPanel
 		}
 	}
 
+	private static final String HELP_URL = "https://runelite.net/plugin-hub/show/group-item-tracker";
 	private static final String LOGGED_OUT_HINT = "Logged out";
 	private static final String BANK_SYNC_HINT = "Visit bank to finalize";
 	private static final String PLUGIN_NAME = "Group Item Tracker";
-	private static final ImageIcon IMPORT_ICON;
 	private static final ImageIcon EXPORT_ICON;
+	private static final ImageIcon IMPORT_ICON;
+	private static final ImageIcon HELP_ICON;
 
 	static
 	{
 		int sz = 24;
+
+		EXPORT_ICON = new ImageIcon(
+			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "export_icon.png")
+				.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
+
 		IMPORT_ICON = new ImageIcon(
 			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "import_icon.png")
 				.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
 
-		EXPORT_ICON = new ImageIcon(
-			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "export_icon.png")
+		HELP_ICON = new ImageIcon(
+			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "help_icon.png")
 				.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
 	}
 
@@ -123,16 +131,18 @@ public final class SidebarPanel extends PluginPanel
 		textPanel.add(titleLabel, BorderLayout.NORTH);
 		textPanel.add(hintLabel, BorderLayout.SOUTH);
 
-		var buttonsGrid = new JPanel(new GridLayout(1, 2));
+		var buttonsGrid = new JPanel(new GridLayout(1, 3));
 		buttonsGrid.setMinimumSize(new Dimension(Integer.MAX_VALUE, 0));
 		buttonsGrid.setBackground(headerPanelColor);
 		this.exportButton = createFooterButton("Export to clipboard", EXPORT_ICON, this::exportItemsToClipboard);
 		this.importButton = createFooterButton("Import from clipboard", IMPORT_ICON, this::importItemsFromClipboard);
+		var helpButton = createFooterButton("Open help page", HELP_ICON, (ActionEvent e) -> LinkBrowser.browse(HELP_URL));
 		// Begin in logged-out state.
 		importButton.setEnabled(false);
 		exportButton.setEnabled(false);
 		buttonsGrid.add(exportButton);
 		buttonsGrid.add(importButton);
+		buttonsGrid.add(helpButton);
 
 		headerPanel.add(textPanel, BorderLayout.CENTER);
 		headerPanel.add(buttonsGrid, BorderLayout.EAST);
