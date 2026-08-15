@@ -205,10 +205,6 @@ public final class SidebarPanel extends PluginPanel
 
 			if (profileManager.tryWriteItemIDsFromJson(text))
 			{
-				// We're about to reset the item tracker so display the bank-sync hint.
-				// onSyncedWithBank will overwrite this message if we're in the bank already.
-				hintLabel.setText(BANK_SYNC_HINT);
-
 				int[] ids = profileManager.readItemIDs();
 				clientThread.invokeLater(() -> itemTracker.loadItems(ids));
 
@@ -270,7 +266,7 @@ public final class SidebarPanel extends PluginPanel
 				itemsGrid.add(entry.panel);
 			}
 
-			hintLabel.setText(createItemCountString());
+			updateLoggedInHint();
 			refreshSidebar();
 		});
 	}
@@ -299,7 +295,7 @@ public final class SidebarPanel extends PluginPanel
 				itemsGrid.add(entry.panel);
 			}
 
-			hintLabel.setText(createItemCountString());
+			updateLoggedInHint();
 			refreshSidebar();
 		});
 	}
@@ -314,7 +310,8 @@ public final class SidebarPanel extends PluginPanel
 			sortedEntries.add(entry);
 			sortedEntries.sort(ENTRY_COMPARER);
 			itemsGrid.add(entry.panel, sortedEntries.indexOf(entry));
-			hintLabel.setText(createItemCountString());
+
+			updateLoggedInHint();
 			refreshSidebar();
 		});
 	}
@@ -329,7 +326,8 @@ public final class SidebarPanel extends PluginPanel
 
 			sortedEntries.remove(index);
 			itemsGrid.remove(index);
-			hintLabel.setText(createItemCountString());
+
+			updateLoggedInHint();
 			refreshSidebar();
 		});
 	}
@@ -393,6 +391,15 @@ public final class SidebarPanel extends PluginPanel
 	{
 		int n = sortedEntries.size();
 		return "Tracking " + n + (n == 1 ? " item" : " items");
+	}
+
+	private void updateLoggedInHint()
+	{
+		var hint = itemTracker.isSyncedWithBank()
+			? createItemCountString()
+			: BANK_SYNC_HINT;
+
+		hintLabel.setText(hint);
 	}
 
 	private void refreshSidebar()
