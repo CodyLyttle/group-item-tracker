@@ -14,6 +14,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -34,6 +35,7 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.SwingUtil;
@@ -63,16 +65,23 @@ public final class SidebarPanel extends PluginPanel
 	}
 
 	private static final String HELP_URL = "https://runelite.net/plugin-hub/show/group-item-tracker";
-	private static final String LOGGED_OUT_HINT = "Logged out";
-	private static final String BANK_SYNC_HINT = "Visit bank to finalize";
+	private static final String LOGGED_OUT_HINT = "<html>Log in to view<br/>tracked items</html>";
+	private static final String BANK_SYNC_HINT = "<html>Open bank to<br/>finish syncing</html>";
 	private static final String PLUGIN_NAME = "Group Item Tracker";
 	private static final ImageIcon EXPORT_ICON;
 	private static final ImageIcon IMPORT_ICON;
 	private static final ImageIcon HELP_ICON;
 
+	// Copied from Loot Tracker & XP Tracker.
+	private static final String HTML_COLOR = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
+	private static final String HTML_TEMPLATE_TRACKER_INFO = "<html><body>" +
+		"<span style='color:" + HTML_COLOR + "'>Tracked: </span><span style='color:white'>%s</span><br>" +
+		"<span style='color:" + HTML_COLOR + "'>Claimed: </span><span style='color:white'>%s</span>" +
+		"</body></html>";
+
 	static
 	{
-		int sz = 24;
+		int sz = 22;
 
 		EXPORT_ICON = new ImageIcon(
 			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "export_icon.png")
@@ -97,12 +106,14 @@ public final class SidebarPanel extends PluginPanel
 	private final ProfileManager profileManager;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
-	private final JLabel hintLabel;
 	private final JPanel itemsGrid;
-	private final JButton importButton;
-	private final JButton exportButton;
 
-	public SidebarPanel(ClientThread clientThread, ItemManager itemManager, ItemTracker itemTracker, ProfileManager profileManager)
+	private final JLabel headerLabel = new JLabel();
+	private final JButton importButton = new JButton();
+	private final JButton exportButton = new JButton();
+	private final JButton helpButton = new JButton();
+
+	public SidebarPanel(ClientThread clientThread, ItemManager itemManager, ItemTracker itemTracker, ProfileManager profileManager, BufferedImage sidebarIcon)
 	{
 		// Disable scrolling of the top level panel.
 		super(false);
@@ -114,38 +125,7 @@ public final class SidebarPanel extends PluginPanel
 
 		setLayout(new BorderLayout());
 		setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
-
-		var headerPanelColor = ColorScheme.DARKER_GRAY_COLOR;
-		var headerPanel = new JPanel(new BorderLayout());
-		headerPanel.setBorder(BorderFactory.createEmptyBorder(9, 12, 9, 7));
-		headerPanel.setBackground(headerPanelColor);
-
-		var textPanel = new JPanel(new BorderLayout());
-		textPanel.setBackground(headerPanelColor);
-		var titleLabel = new JLabel(PLUGIN_NAME);
-		titleLabel.setFont(FontManager.getRunescapeFont());
-		titleLabel.setHorizontalAlignment(SwingConstants.LEFT);
-		this.hintLabel = new JLabel(LOGGED_OUT_HINT);
-		hintLabel.setFont(FontManager.getRunescapeSmallFont());
-		hintLabel.setHorizontalAlignment(SwingConstants.LEFT);
-		textPanel.add(titleLabel, BorderLayout.NORTH);
-		textPanel.add(hintLabel, BorderLayout.SOUTH);
-
-		var buttonsGrid = new JPanel(new GridLayout(1, 3));
-		buttonsGrid.setMinimumSize(new Dimension(Integer.MAX_VALUE, 0));
-		buttonsGrid.setBackground(headerPanelColor);
-		this.exportButton = createFooterButton("Export to clipboard", EXPORT_ICON, this::exportItemsToClipboard);
-		this.importButton = createFooterButton("Import from clipboard", IMPORT_ICON, this::importItemsFromClipboard);
-		var helpButton = createFooterButton("Open help page", HELP_ICON, (ActionEvent e) -> LinkBrowser.browse(HELP_URL));
-		// Begin in logged-out state.
-		importButton.setEnabled(false);
-		exportButton.setEnabled(false);
-		buttonsGrid.add(exportButton);
-		buttonsGrid.add(importButton);
-		buttonsGrid.add(helpButton);
-
-		headerPanel.add(textPanel, BorderLayout.CENTER);
-		headerPanel.add(buttonsGrid, BorderLayout.EAST);
+		var headerPanel = buildHeaderPanel(sidebarIcon);
 
 		// Vertical stack panel of tracked items.
 		this.itemsGrid = new JPanel(new GridLayout(0, 1, 0, 1));
@@ -161,14 +141,49 @@ public final class SidebarPanel extends PluginPanel
 		add(scrollPane, BorderLayout.CENTER);
 	}
 
-	private JButton createFooterButton(String text, ImageIcon icon, ActionListener onClick)
+	private JPanel buildHeaderPanel(BufferedImage iconImage)
 	{
-		var button = new JButton(icon);
-		button.setToolTipText(text);
+		var panelColor = ColorScheme.DARKER_GRAY_COLOR;
+		var headerPanel = new JPanel(new BorderLayout());
+		headerPanel.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 8));
+		headerPanel.setBackground(panelColor);
+
+		var headerIcon = new JLabel(new ImageIcon(iconImage.getScaledInstance(26, 26, Image.SCALE_SMOOTH)));
+
+		headerLabel.setText(LOGGED_OUT_HINT);
+		headerLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		headerLabel.setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 0));
+		headerLabel.setFont(FontManager.getRunescapeSmallFont());
+		headerLabel.setHorizontalAlignment(SwingConstants.LEFT);
+
+		var buttonsGrid = new JPanel(new GridLayout(1, 3));
+		buttonsGrid.setMinimumSize(new Dimension(Integer.MAX_VALUE, 0));
+		buttonsGrid.setBackground(panelColor);
+		setupHeaderButton(exportButton, EXPORT_ICON, "Export to clipboard", this::exportItemsToClipboard);
+		setupHeaderButton(importButton, IMPORT_ICON, "Import from clipboard", this::importItemsFromClipboard);
+		setupHeaderButton(helpButton, HELP_ICON, "Open help page", (ActionEvent e) -> LinkBrowser.browse(HELP_URL));
+
+		// Begin in logged-out state.
+		importButton.setEnabled(false);
+		exportButton.setEnabled(false);
+		buttonsGrid.add(exportButton);
+		buttonsGrid.add(importButton);
+		buttonsGrid.add(helpButton);
+
+		headerPanel.add(headerIcon, BorderLayout.WEST);
+		headerPanel.add(headerLabel, BorderLayout.CENTER);
+		headerPanel.add(buttonsGrid, BorderLayout.EAST);
+		return headerPanel;
+	}
+
+	private void setupHeaderButton(JButton button, ImageIcon icon, String tooltip, ActionListener onClick)
+	{
+		button.setIcon(icon);
+		button.setToolTipText(tooltip);
 		button.addActionListener(onClick);
-		button.setPreferredSize(new Dimension(30, 30));
+		button.setPreferredSize(new Dimension(28, 28));
+		button.setContentAreaFilled(false);
 		SwingUtil.removeButtonDecorations(button);
-		return button;
 	}
 
 	private void exportItemsToClipboard(ActionEvent event)
@@ -178,16 +193,16 @@ public final class SidebarPanel extends PluginPanel
 			.getSystemClipboard()
 			.setContents(selection, null);
 
-		// hintLabel as parent puts the messagebox in a convenient position.
+		// headerText as parent puts the messagebox in a convenient position.
 		JOptionPane.showMessageDialog(
-			hintLabel, "Successfully exported items to the clipboard.",
+			headerLabel, "Successfully exported items to the clipboard.",
 			PLUGIN_NAME, JOptionPane.INFORMATION_MESSAGE);
 	}
 
 	private void importItemsFromClipboard(ActionEvent event)
 	{
 		var result = JOptionPane.showConfirmDialog(
-			hintLabel, "Imported items will replace all existing items, are you sure?",
+			headerLabel, "Imported items will replace all existing items, are you sure?",
 			PLUGIN_NAME, JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 
 		if (result != JOptionPane.YES_OPTION)
@@ -209,7 +224,7 @@ public final class SidebarPanel extends PluginPanel
 				clientThread.invokeLater(() -> itemTracker.loadItems(ids));
 
 				JOptionPane.showMessageDialog(
-					hintLabel, "Successfully imported items from the clipboard.",
+					headerLabel, "Successfully imported items from the clipboard.",
 					PLUGIN_NAME, JOptionPane.INFORMATION_MESSAGE);
 
 				return;
@@ -222,38 +237,30 @@ public final class SidebarPanel extends PluginPanel
 		}
 
 		JOptionPane.showMessageDialog(
-			hintLabel, "Import failed: invalid format.",
+			headerLabel, "Import failed: invalid format.",
 			PLUGIN_NAME, JOptionPane.ERROR_MESSAGE);
 	}
 
+	// Call on sidebar panels that share a lifetime with the item tracker.
 	public void login()
 	{
-		final boolean isSynced = itemTracker.isSyncedWithBank();
 		SwingUtilities.invokeLater(() -> {
 			importButton.setEnabled(true);
 			exportButton.setEnabled(true);
-			if (!isSynced)
-			{
-				hintLabel.setText(BANK_SYNC_HINT);
-			}
+			updateLoggedInHint();
 		});
 	}
 
-	public void logout()
-	{
-		SwingUtilities.invokeLater(() -> {
-			importButton.setEnabled(false);
-			exportButton.setEnabled(false);
-			hintLabel.setText(LOGGED_OUT_HINT);
-		});
-	}
-
-	public void syncWithItemTracker()
+	// Call on sidebar panels that were created after the item tracker.
+	public void loginAndSyncWithItemTracker()
 	{
 		// Copy the collection before crossing the thread-boundary to avoid ConcurrentModificationException.
 		final var items = itemTracker.getItems().toArray(TrackedItemSnapshot[]::new);
 
 		SwingUtilities.invokeLater(() -> {
+			importButton.setEnabled(true);
+			exportButton.setEnabled(true);
+
 			for (var item : items)
 			{
 				var entry = createItemPanelEntry(item);
@@ -271,10 +278,21 @@ public final class SidebarPanel extends PluginPanel
 		});
 	}
 
+	public void logout()
+	{
+		SwingUtilities.invokeLater(() -> {
+			importButton.setEnabled(false);
+			exportButton.setEnabled(false);
+			headerLabel.setText(LOGGED_OUT_HINT);
+		});
+	}
+
 	@Subscribe
 	private void onSyncedWithBank(ItemTracker.SyncedWithBank event)
 	{
-		SwingUtilities.invokeLater(() -> hintLabel.setText(createItemCountString()));
+		// Hint gets overwritten next game tick if the bank contains unclaimed tracked items.
+		// This means we see a stale claimed counter for a game tick. Not ideal, but fixing it adds complexity.
+		SwingUtilities.invokeLater(this::updateLoggedInHint);
 	}
 
 	@Subscribe
@@ -337,6 +355,8 @@ public final class SidebarPanel extends PluginPanel
 	{
 		SwingUtilities.invokeLater(() ->
 		{
+			var claimedItemsChanged = false;
+
 			for (var item : event.getItems())
 			{
 				var index = getIndexByItemID(item.itemID);
@@ -354,16 +374,25 @@ public final class SidebarPanel extends PluginPanel
 				// - Dropping or picking up tracked items.
 				if (wasClaimed != isClaimed)
 				{
+					claimedItemsChanged = true;
+
 					// List.sort is optimized for nearly sorted lists, making this very cheap.
 					sortedEntries.sort(ENTRY_COMPARER);
 					index = getIndexByItemID(item.itemID);
 					itemsGrid.setComponentZOrder(entry.panel, index);
 				}
 			}
+
+			if (claimedItemsChanged)
+			{
+				updateLoggedInHint();
+			}
+
 			refreshSidebar();
 		});
 	}
 
+	// O(n) but the data set is small enough that it doesn't matter.
 	private int getIndexByItemID(int itemID)
 	{
 		for (int i = 0; i < sortedEntries.size(); i++)
@@ -387,19 +416,28 @@ public final class SidebarPanel extends PluginPanel
 		return new ItemPanelEntry(item, panel);
 	}
 
-	private String createItemCountString()
-	{
-		int n = sortedEntries.size();
-		return "Tracking " + n + (n == 1 ? " item" : " items");
-	}
-
 	private void updateLoggedInHint()
 	{
-		var hint = itemTracker.isSyncedWithBank()
-			? createItemCountString()
-			: BANK_SYNC_HINT;
+		if (!itemTracker.isSyncedWithBank())
+		{
+			headerLabel.setText(BANK_SYNC_HINT);
+			return;
+		}
 
-		hintLabel.setText(hint);
+		int trackedCount = sortedEntries.size();
+		int claimedCount = 0;
+		for (var entry : sortedEntries)
+		{
+			// Entries are ordered claimed first.
+			if (entry.snapshot.locationMask == 0)
+			{
+				break;
+			}
+
+			claimedCount++;
+		}
+
+		headerLabel.setText(String.format(HTML_TEMPLATE_TRACKER_INFO, trackedCount, claimedCount));
 	}
 
 	private void refreshSidebar()

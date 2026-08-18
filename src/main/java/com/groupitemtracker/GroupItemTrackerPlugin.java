@@ -139,10 +139,9 @@ public class GroupItemTrackerPlugin extends Plugin
 					if (showSidebar)
 					{
 						initSidebar();
-						sidebar.syncWithItemTracker();
 						if (client.getGameState() == GameState.LOGGED_IN)
 						{
-							sidebar.login();
+							sidebar.loginAndSyncWithItemTracker();
 						}
 					}
 					else
@@ -200,7 +199,7 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	private void initSidebar()
 	{
-		sidebar = new SidebarPanel(clientThread, itemManager, itemTracker, profileManager);
+		sidebar = new SidebarPanel(clientThread, itemManager, itemTracker, profileManager, sidebarIcon);
 		eventBus.register(sidebar);
 		navButton = buildNavButton(sidebarIcon, sidebar, config.sidebarPriority());
 		clientToolbar.addNavigation(navButton);

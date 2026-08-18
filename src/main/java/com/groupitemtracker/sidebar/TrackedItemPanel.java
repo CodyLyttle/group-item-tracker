@@ -113,6 +113,7 @@ public class TrackedItemPanel extends JPanel
 		removeButton.setRolloverIcon(DELETE_ICON_HOT);
 		removeButton.setRolloverEnabled(true);
 		removeButton.setPreferredSize(new Dimension(30, 30));
+		removeButton.setContentAreaFilled(false);
 		SwingUtil.removeButtonDecorations(removeButton);
 
 		add(iconLabel, BorderLayout.WEST);
