@@ -21,7 +21,8 @@ public interface GroupItemTrackerConfig extends Config
 	String KEY_BANK_OUTLINE_COLOR = "bank-outline-color";
 	String KEY_EDIT_MODE_ACTIVE = "edit_mode_active";
 	String KEY_SHOW_SIDEBAR = "show-sidebar";
-	String KEY_SIDEBAR_PRIORITY = "sidebar_priority";
+	String KEY_SIDEBAR_PRIORITY = "sidebar-priority";
+	String KEY_SHOW_TUTORIAL = "sidebar-tutorial";
 
 	@ConfigItem(
 		keyName = KEY_BANK_OUTLINE_MODE,
@@ -76,4 +77,14 @@ public interface GroupItemTrackerConfig extends Config
 	{
 		return 1;
 	}
+
+	@ConfigItem(
+		keyName = KEY_SHOW_TUTORIAL,
+		name = "Show tutorial",
+		description = "Show he tutorial panel in the sidebar.")
+	default boolean showTutorial()
+	{
+		return true;
+	}
+
 }

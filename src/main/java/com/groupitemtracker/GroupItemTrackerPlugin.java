@@ -55,6 +55,9 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Inject
 	private ProfileManager profileManager;
 
+	@Inject
+	private ConfigManager configManager;
+
 	private NavigationButton navButton;
 	private SidebarPanel sidebar;
 	private BufferedImage sidebarIcon;
@@ -131,6 +134,12 @@ public class GroupItemTrackerPlugin extends Plugin
 		{
 			switch (event.getKey())
 			{
+				case GroupItemTrackerConfig.KEY_SHOW_TUTORIAL:
+					if (sidebar != null)
+					{
+						sidebar.setTutorialPanelVisible(config.showTutorial());
+					}
+					break;
 				// The user shouldn't incur the cost of something they aren't using, alloc/dealloc instead of hiding.
 				case GroupItemTrackerConfig.KEY_SHOW_SIDEBAR:
 					// Parse value so that null == false, rather than null == config.showSidebar default value.
@@ -199,7 +208,8 @@ public class GroupItemTrackerPlugin extends Plugin
 
 	private void initSidebar()
 	{
-		sidebar = new SidebarPanel(clientThread, itemManager, itemTracker, profileManager, sidebarIcon);
+		sidebar = new SidebarPanel(configManager, profileManager, clientThread, itemManager, itemTracker, sidebarIcon);
+		sidebar.setTutorialPanelVisible(config.showTutorial());
 		eventBus.register(sidebar);
 		navButton = buildNavButton(sidebarIcon, sidebar, config.sidebarPriority());
 		clientToolbar.addNavigation(navButton);

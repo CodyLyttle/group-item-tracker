@@ -1,10 +1,12 @@
 package com.groupitemtracker.sidebar;
 
+import com.groupitemtracker.GroupItemTrackerConfig;
 import com.groupitemtracker.GroupItemTrackerPlugin;
 import com.groupitemtracker.ItemTracker;
 import com.groupitemtracker.ProfileManager;
 import com.groupitemtracker.TrackedItemSnapshot;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.Image;
@@ -20,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -30,6 +34,7 @@ import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
@@ -102,22 +107,26 @@ public final class SidebarPanel extends PluginPanel
 		.thenComparing((entry -> entry.snapshot.name));
 
 	private final List<ItemPanelEntry> sortedEntries = new ArrayList<>();
+	private final ConfigManager configManager;
 	private final ClientThread clientThread;
 	private final ProfileManager profileManager;
 	private final ItemManager itemManager;
 	private final ItemTracker itemTracker;
-	private final JPanel itemsGrid;
 
 	private final JLabel headerLabel = new JLabel();
 	private final JButton importButton = new JButton();
 	private final JButton exportButton = new JButton();
 	private final JButton helpButton = new JButton();
+	private final JPanel tutorialPanel;
+	private final JPanel itemsGrid;
 
-	public SidebarPanel(ClientThread clientThread, ItemManager itemManager, ItemTracker itemTracker, ProfileManager profileManager, BufferedImage sidebarIcon)
+
+	public SidebarPanel(ConfigManager configManager, ProfileManager profileManager, ClientThread clientThread,
+	                    ItemManager itemManager, ItemTracker itemTracker, BufferedImage sidebarIcon)
 	{
 		// Disable scrolling of the top level panel.
 		super(false);
-
+		this.configManager = configManager;
 		this.clientThread = clientThread;
 		this.itemManager = itemManager;
 		this.itemTracker = itemTracker;
@@ -127,6 +136,14 @@ public final class SidebarPanel extends PluginPanel
 		setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
 		var headerPanel = buildHeaderPanel(sidebarIcon);
 
+		var contentPanel = new JPanel(new BorderLayout());
+		contentPanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
+
+		// Wrap the tutorial with a bottom margin that disappears when hidden.
+		tutorialPanel = new JPanel(new BorderLayout());
+		tutorialPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
+		tutorialPanel.add(buildTutorialPanel());
+
 		// Vertical stack panel of tracked items.
 		this.itemsGrid = new JPanel(new GridLayout(0, 1, 0, 1));
 		// Prevent scroll pane from vertically stretching grid items.
@@ -134,11 +151,13 @@ public final class SidebarPanel extends PluginPanel
 		wrapper.add(itemsGrid, BorderLayout.NORTH);
 		// Vertical scrolling for overflowing items.
 		var scrollPane = new JScrollPane(wrapper);
-		scrollPane.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
 		scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
+		contentPanel.add(tutorialPanel, BorderLayout.NORTH);
+		contentPanel.add(scrollPane, BorderLayout.CENTER);
+
 		add(headerPanel, BorderLayout.NORTH);
-		add(scrollPane, BorderLayout.CENTER);
+		add(contentPanel, BorderLayout.CENTER);
 	}
 
 	private JPanel buildHeaderPanel(BufferedImage iconImage)
@@ -174,6 +193,51 @@ public final class SidebarPanel extends PluginPanel
 		headerPanel.add(headerLabel, BorderLayout.CENTER);
 		headerPanel.add(buttonsGrid, BorderLayout.EAST);
 		return headerPanel;
+	}
+
+	private JPanel buildTutorialPanel()
+	{
+		var tutorialPanel = new JPanel();
+		tutorialPanel.setAlignmentX(0.5f);
+		tutorialPanel.setLayout(new BoxLayout(tutorialPanel, BoxLayout.Y_AXIS));
+		tutorialPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+
+		var headerLabel = new JLabel("Getting Started");
+		headerLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+		headerLabel.setFont(FontManager.getRunescapeBoldFont());
+
+		var tutorialLabel = new JLabel();
+		tutorialLabel.setBorder(BorderFactory.createEmptyBorder(9, 8, 11, 8));
+		tutorialLabel.setAlignmentX(0.5f);
+		tutorialLabel.setFont(FontManager.getRunescapeSmallFont());
+		tutorialLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		tutorialLabel.setText("<html><div style='text-align:center'>" +
+			"Toggle edit mode by right-clicking the <b>Group Storage</b> button in the bank, " +
+			"or the <b>Back to bank</b> button in group storage." +
+			"<br><br>" +
+			"While in edit mode and in the bank or group storage interface, right-click an item and select <b>Start-tracking</b>." +
+			"</div></html>");
+
+		var hideButton = new JButton("Hide Tutorial");
+		hideButton.setBackground(ColorScheme.BRAND_ORANGE);
+		hideButton.setForeground(ColorScheme.BORDER_COLOR);
+		hideButton.setFont(FontManager.getRunescapeBoldFont());
+		hideButton.setPreferredSize(new Dimension(140, 28));
+		hideButton.setMinimumSize(new Dimension(140, 28));
+		hideButton.setMaximumSize(new Dimension(140, 28));
+		hideButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+		hideButton.addActionListener((e) -> {
+			configManager.setConfiguration(GroupItemTrackerConfig.GROUP, GroupItemTrackerConfig.KEY_SHOW_TUTORIAL, false);
+			this.tutorialPanel.setVisible(false);
+		});
+
+		tutorialPanel.add(Box.createVerticalStrut(12));
+		tutorialPanel.add(headerLabel);
+		tutorialPanel.add(tutorialLabel);
+		tutorialPanel.add(hideButton);
+		tutorialPanel.add(Box.createVerticalStrut(14));
+
+		return tutorialPanel;
 	}
 
 	private void setupHeaderButton(JButton button, ImageIcon icon, String tooltip, ActionListener onClick)
@@ -239,6 +303,11 @@ public final class SidebarPanel extends PluginPanel
 		JOptionPane.showMessageDialog(
 			headerLabel, "Import failed: invalid format.",
 			PLUGIN_NAME, JOptionPane.ERROR_MESSAGE);
+	}
+
+	public void setTutorialPanelVisible(boolean visible)
+	{
+		tutorialPanel.setVisible(visible);
 	}
 
 	// Call on sidebar panels that share a lifetime with the item tracker.
