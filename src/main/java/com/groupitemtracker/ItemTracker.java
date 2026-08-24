@@ -50,8 +50,8 @@ public class ItemTracker
 	private final Client client;
 	private final EventBus eventBus;
 	private final ItemIdentifier identifier;
-	private final Map<Integer, TrackedItem> items = new HashMap<>();
-	private final Map<Integer, TrackedItemSnapshot> snapshots = new HashMap<>();
+	private Map<Integer, TrackedItem> items = new HashMap<>();
+	private Map<Integer, TrackedItemSnapshot> snapshots = new HashMap<>();
 	private boolean bankClosedLastTick = false;
 	private boolean sharedBankClosedLastTick = false;
 	private boolean containerHasChanged = false;
@@ -180,6 +180,12 @@ public class ItemTracker
 	{
 		resetState();
 		eventBus.post(new Invalidated(new ArrayList<>()));
+	}
+
+	public void freeExcessMemory()
+	{
+		items = new HashMap<>(0);
+		snapshots = new HashMap<>(0);
 	}
 
 	@Subscribe

@@ -46,7 +46,7 @@ import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.SwingUtil;
 
 // Profiled 100 tracked items (70% claimed).
-// Memory dump:
+// Memory dump: (out of date, but still a reasonable ballpark number).
 // - 88kB shallow (explicit plugin allocations).
 // - 1.3MB retained (primarily Swing components).
 // System.nanoTime() measurements:
@@ -69,14 +69,13 @@ public final class SidebarPanel extends PluginPanel
 		}
 	}
 
+	private static final ImageIcon EXPORT_ICON;
+	private static final ImageIcon IMPORT_ICON;
+	private static final ImageIcon HELP_ICON;
 	private static final String HELP_URL = "https://runelite.net/plugin-hub/show/group-item-tracker";
 	private static final String LOGGED_OUT_HINT = "<html>Log in to view<br/>tracked items</html>";
 	private static final String BANK_SYNC_HINT = "<html>Open bank to<br/>finish syncing</html>";
 	private static final String PLUGIN_NAME = "Group Item Tracker";
-	private static final ImageIcon EXPORT_ICON;
-	private static final ImageIcon IMPORT_ICON;
-	private static final ImageIcon HELP_ICON;
-
 	// Copied from Loot Tracker & XP Tracker.
 	private static final String HTML_COLOR = ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR);
 	private static final String HTML_TEMPLATE_TRACKER_INFO = "<html><body>" +
@@ -86,19 +85,15 @@ public final class SidebarPanel extends PluginPanel
 
 	static
 	{
-		int sz = 22;
+		EXPORT_ICON = createHeaderButtonIcon("export_icon.png");
+		IMPORT_ICON = createHeaderButtonIcon("import_icon.png");
+		HELP_ICON = createHeaderButtonIcon("help_icon.png");
+	}
 
-		EXPORT_ICON = new ImageIcon(
-			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "export_icon.png")
-				.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
-
-		IMPORT_ICON = new ImageIcon(
-			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "import_icon.png")
-				.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
-
-		HELP_ICON = new ImageIcon(
-			ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, "help_icon.png")
-				.getScaledInstance(sz, sz, Image.SCALE_SMOOTH));
+	private static ImageIcon createHeaderButtonIcon(String fileName)
+	{
+		BufferedImage img = ImageUtil.loadImageResource(GroupItemTrackerPlugin.class, fileName);
+		return new ImageIcon(img.getScaledInstance(22, 22, Image.SCALE_SMOOTH));
 	}
 
 	// Claimed items in alphabetical order, followed by unclaimed items in alphabetical order.
@@ -257,7 +252,7 @@ public final class SidebarPanel extends PluginPanel
 			.getSystemClipboard()
 			.setContents(selection, null);
 
-		// headerText as parent puts the messagebox in a convenient position.
+		// headerLabel as parent puts the messagebox in a convenient position.
 		JOptionPane.showMessageDialog(
 			headerLabel, "Successfully exported items to the clipboard.",
 			PLUGIN_NAME, JOptionPane.INFORMATION_MESSAGE);

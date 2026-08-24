@@ -84,7 +84,7 @@ public class GroupItemTrackerPlugin extends Plugin
 
 		clientThread.invokeLater(() ->
 		{
-			bankInterfaceManager.startup();
+			bankInterfaceManager.refreshConfig(config);
 			if (client.getGameState() == GameState.LOGGED_IN)
 			{
 				loadProfile();
@@ -104,8 +104,9 @@ public class GroupItemTrackerPlugin extends Plugin
 		eventBus.unregister(itemTracker);
 
 		clientThread.invokeLater(() -> {
-			bankInterfaceManager.shutdown();
+			bankInterfaceManager.freeExcessMemory();
 			itemTracker.reset();
+			itemTracker.freeExcessMemory();
 		});
 	}
 
@@ -130,43 +131,57 @@ public class GroupItemTrackerPlugin extends Plugin
 	@Subscribe
 	private void onConfigChanged(ConfigChanged event)
 	{
-		if (event.getGroup().equals(GroupItemTrackerConfig.GROUP))
+		if (!event.getGroup().equals(GroupItemTrackerConfig.GROUP))
 		{
-			switch (event.getKey())
+			return;
+		}
+
+		switch (event.getKey())
+		{
+			case GroupItemTrackerConfig.KEY_BANK_FILTER:
+			case GroupItemTrackerConfig.KEY_BANK_OUTLINE_COLOR:
+			case GroupItemTrackerConfig.KEY_BANK_OUTLINE_MODE:
+			case GroupItemTrackerConfig.KEY_EDIT_MODE_ACTIVE:
+				bankInterfaceManager.refreshConfig(config);
+				break;
+			case GroupItemTrackerConfig.KEY_SHOW_TUTORIAL:
 			{
-				case GroupItemTrackerConfig.KEY_SHOW_TUTORIAL:
-					if (sidebar != null)
-					{
-						sidebar.setTutorialPanelVisible(config.showTutorial());
-					}
-					break;
-				// The user shouldn't incur the cost of something they aren't using, alloc/dealloc instead of hiding.
-				case GroupItemTrackerConfig.KEY_SHOW_SIDEBAR:
-					// Parse value so that null == false, rather than null == config.showSidebar default value.
-					// This prevents sidebar panel duplication upon resetting the config value.
-					var showSidebar = Boolean.parseBoolean(event.getNewValue());
-					if (showSidebar)
-					{
-						initSidebar();
-						if (client.getGameState() == GameState.LOGGED_IN)
-						{
-							sidebar.loginAndSyncWithItemTracker();
-						}
-					}
-					else
-					{
-						tryDestroySidebar();
-					}
-					break;
+				if (sidebar != null)
+				{
+					sidebar.setTutorialPanelVisible(config.showTutorial());
+				}
+				break;
+			}
+			case GroupItemTrackerConfig.KEY_SIDEBAR_PRIORITY:
+			{
 				// This setting is likely to be tinkered with repeatedly, keep the sidebar to avoid unnecessary work.
-				case GroupItemTrackerConfig.KEY_SIDEBAR_PRIORITY:
-					if (config.showSidebar())
+				if (sidebar != null)
+				{
+					clientToolbar.removeNavigation(navButton);
+					navButton = buildNavButton(sidebarIcon, sidebar, config.sidebarPriority());
+					clientToolbar.addNavigation(navButton);
+				}
+				break;
+			}
+			case GroupItemTrackerConfig.KEY_SHOW_SIDEBAR:
+			{
+				// The user shouldn't incur the cost of something they aren't using, alloc/dealloc instead of hiding.
+				// Parse value so that null == false, rather than null == config.showSidebar default value.
+				// This prevents sidebar panel duplication upon resetting the config value.
+				var showSidebar = Boolean.parseBoolean(event.getNewValue());
+				if (showSidebar)
+				{
+					initSidebar();
+					if (client.getGameState() == GameState.LOGGED_IN)
 					{
-						clientToolbar.removeNavigation(navButton);
-						navButton = buildNavButton(sidebarIcon, sidebar, config.sidebarPriority());
-						clientToolbar.addNavigation(navButton);
+						sidebar.loginAndSyncWithItemTracker();
 					}
-					break;
+				}
+				else
+				{
+					tryDestroySidebar();
+				}
+				break;
 			}
 		}
 	}
