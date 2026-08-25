@@ -210,7 +210,7 @@ public final class SidebarPanel extends PluginPanel
 			"Toggle edit mode by right-clicking the <b>Group Storage</b> button in the bank, " +
 			"or the <b>Back to bank</b> button in group storage." +
 			"<br><br>" +
-			"While in edit mode and in the bank or group storage interface, right-click an item and select <b>Start-tracking</b>." +
+			"While in edit mode, right-click an item in the bank or group storage and select <b>Start-tracking</b>." +
 			"</div></html>");
 
 		var hideButton = new JButton("Hide Tutorial");
