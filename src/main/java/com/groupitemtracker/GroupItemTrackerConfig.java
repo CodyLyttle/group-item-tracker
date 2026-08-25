@@ -4,11 +4,12 @@ import java.awt.Color;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.ConfigSection;
 
 @ConfigGroup(GroupItemTrackerConfig.GROUP)
 public interface GroupItemTrackerConfig extends Config
 {
-	public static enum BankHighlightMode
+	enum BankHighlightMode
 	{
 		NEVER,
 		EDIT_MODE_ONLY,
@@ -24,10 +25,49 @@ public interface GroupItemTrackerConfig extends Config
 	String KEY_SIDEBAR_PRIORITY = "sidebar-priority";
 	String KEY_SHOW_TUTORIAL = "sidebar-tutorial";
 
+
+	@ConfigItem(
+		keyName = KEY_EDIT_MODE_ACTIVE,
+		name = "Edit mode",
+		description = "Edit mode adds Start-tracking/Stop-tracking menu options for items in the bank and group storage.",
+		position = 0)
+	default boolean editModeActive()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = KEY_SHOW_TUTORIAL,
+		name = "Show tutorial",
+		description = "Whether to show the tutorial panel in the sidebar.",
+		position = 2)
+	default boolean showTutorial()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = KEY_BANK_FILTER,
+		name = "Search filter",
+		description = "Type /g in the bank or group storage search interface to show all tracked items.",
+		position = 1)
+	default boolean useBankFilter()
+	{
+		return true;
+	}
+
+	@ConfigSection(
+		name = "Tracked item outlines",
+		description = "Configuration for drawing item outlines in the bank and group storage interfaces.",
+		position = 20
+	)
+	String outlineSection = "outline";
+
 	@ConfigItem(
 		keyName = KEY_BANK_OUTLINE_MODE,
-		name = "Draw outlines",
-		description = "Draw outlines around tracked items in the bank and shared storage interfaces.")
+		name = "Outline mode",
+		description = "When to draw outlines.",
+		section = outlineSection)
 	default BankHighlightMode bankOutlineMode()
 	{
 		return BankHighlightMode.EDIT_MODE_ONLY;
@@ -36,34 +76,25 @@ public interface GroupItemTrackerConfig extends Config
 	@ConfigItem(
 		keyName = KEY_BANK_OUTLINE_COLOR,
 		name = "Outline color",
-		description = "The outline color of tracked items in the bank and shared storage interfaces.")
+		description = "The outline color.",
+		section = outlineSection)
 	default Color bankOutlineColor()
 	{
 		return Color.CYAN;
 	}
 
-	@ConfigItem(
-		keyName = KEY_BANK_FILTER,
-		name = "Bank search filter",
-		description = "Filter tracked items in the bank or shared storage interface by typing '/g' in the search box.")
-	default boolean useBankFilter()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = KEY_EDIT_MODE_ACTIVE,
-		name = "Edit mode",
-		description = "TODO: Description")
-	default boolean editModeActive()
-	{
-		return false;
-	}
+	@ConfigSection(
+		name = "Sidebar",
+		description = "Configuration for sidebar visibility and order.",
+		position = 10)
+	String sidebarSection = "sidebar";
 
 	@ConfigItem(
 		keyName = KEY_SHOW_SIDEBAR,
 		name = "Show sidebar",
-		description = "TODO: Description")
+		description = "Whether to show the sidebar.",
+		section = sidebarSection,
+		position = 0)
 	default boolean showSidebar()
 	{
 		return true;
@@ -71,20 +102,12 @@ public interface GroupItemTrackerConfig extends Config
 
 	@ConfigItem(
 		keyName = KEY_SIDEBAR_PRIORITY,
-		name = "Sidebar priority",
-		description = "TODO: Description")
+		name = "Icon priority",
+		description = "The order in which the sidebar icon appears. This is not a 1:1 mapping between number and order, and depends on the priority of other plugins.",
+		section = sidebarSection,
+		position = 1)
 	default int sidebarPriority()
 	{
 		return 1;
 	}
-
-	@ConfigItem(
-		keyName = KEY_SHOW_TUTORIAL,
-		name = "Show tutorial",
-		description = "Show he tutorial panel in the sidebar.")
-	default boolean showTutorial()
-	{
-		return true;
-	}
-
 }
