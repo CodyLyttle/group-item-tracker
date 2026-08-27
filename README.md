@@ -1,15 +1,15 @@
 # Group Item Tracker
 
-Remembers your shared items so you don't have to.
+Remembers shared items so you don't have to.
 
-<img width="1110" height="385" alt="Example gif" src="https://github.com/user-attachments/assets/7a8bc664-62e4-4aa9-add4-f2de46ad9ec3" />
+![Plugin Showcase](docs/showcase.gif)
 
 ## Tracking Items
 - Enter edit-mode by right-clicking the <b>Group Storage</b> or <b>Back to bank</b> button.
 - Right-click an item in the bank or group storage and select <b>Start-tracking/Stop-tracking</b>.
 - Alternatively, stop tracking an item by clicking the corresponding ✕ button in the sidebar.
 
-<img width="220" height="52" alt="Game button icons" src="https://github.com/user-attachments/assets/6fecf215-56e3-4709-a486-1e583ff142d5" />
+![Edit-mode Buttons](docs/edit-mode-buttons.png)
 
 ## Features
 - Remembers the location of tracked items across your bank, equipment, and inventory containers.
